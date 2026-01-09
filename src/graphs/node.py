@@ -1,5 +1,7 @@
 import os
 import re
+import zipfile
+import shutil
 from typing import List, Dict, Any
 from langchain_core.runnables import RunnableConfig
 from langgraph.runtime import Runtime
@@ -15,9 +17,44 @@ from graphs.state import (
     GenerateFlowchartOutput,
     GenerateReadmeInput,
     GenerateReadmeOutput,
+    UnzipInput,
+    UnzipOutput,
 )
 import json
 from jinja2 import Template
+
+
+def unzip_node(state: UnzipInput, config: RunnableConfig, runtime: Runtime[Context]) -> UnzipOutput:
+    """
+    title: 解压缩文件
+    desc: 如果输入是zip文件，则解压到临时目录；如果是文件夹，直接返回
+    """
+
+    path = state.component_path
+
+    # 判断是否是zip文件
+    if path.endswith('.zip') or path.endswith('.ZIP'):
+        # 创建临时解压目录
+        import tempfile
+        temp_dir = tempfile.mkdtemp(prefix="component_extracted_")
+
+        try:
+            with zipfile.ZipFile(path, 'r') as zip_ref:
+                zip_ref.extractall(temp_dir)
+
+            print(f"已解压到: {temp_dir}")
+
+            # 返回解压后的路径
+            return UnzipOutput(extracted_path=temp_dir)
+        except Exception as e:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+            raise Exception(f"解压失败: {str(e)}")
+    else:
+        # 如果不是zip文件，直接返回原路径
+        if os.path.isdir(path):
+            return UnzipOutput(extracted_path=path)
+        else:
+            raise Exception(f"路径既不是zip文件也不是目录: {path}")
 
 
 def analyze_structure_node(state: AnalyzeStructureInput, config: RunnableConfig, runtime: Runtime[Context]) -> AnalyzeStructureOutput:
@@ -26,7 +63,7 @@ def analyze_structure_node(state: AnalyzeStructureInput, config: RunnableConfig,
     desc: 分析组件文件夹的层级结构，输出每个子文件夹的概括说明，特别关注include和src文件夹下的文件
     """
 
-    component_path = state.component_path
+    component_path = state.extracted_path
     result = []
 
     def analyze_directory(path: str, indent: int = 0) -> List[str]:
@@ -77,7 +114,7 @@ def extract_functions_node(state: ExtractFunctionsInput, config: RunnableConfig,
     desc: 提取include文件夹下.h内部的所有函数，详细说明函数名称、功能、输入参数、返回值、调用示例
     """
 
-    component_path = state.component_path
+    component_path = state.extracted_path
     include_path = os.path.join(component_path, "include")
 
     if not os.path.exists(include_path):
@@ -130,7 +167,10 @@ def analyze_call_relation_node(state: AnalyzeCallRelationInput, config: Runnable
     integrations: 大语言模型
     """
 
-    component_path = state.component_path
+    from coze_coding_dev_sdk import LLMClient
+    from langchain_core.messages import SystemMessage, HumanMessage
+
+    component_path = state.extracted_path
     ctx = runtime.context
 
     # 读取配置文件

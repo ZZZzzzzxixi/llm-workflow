@@ -5,7 +5,8 @@ from utils.file.file import File
 # 全局状态定义
 class GlobalState(BaseModel):
     """全局状态定义"""
-    component_path: str = Field(default="", description="组件文件夹路径")
+    component_path: str = Field(default="", description="组件文件夹路径或zip文件路径")
+    extracted_path: str = Field(default="", description="解压后的组件文件夹路径")
     folder_structure: str = Field(default="", description="文件夹结构分析结果")
     header_functions: str = Field(default="", description="头文件函数信息")
     call_relationship: str = Field(default="", description="函数调用关系分析结果")
@@ -15,7 +16,7 @@ class GlobalState(BaseModel):
 # 工作流输入
 class GraphInput(BaseModel):
     """工作流输入"""
-    component_path: str = Field(..., description="组件文件夹路径")
+    component_path: str = Field(..., description="组件文件夹路径或zip文件路径")
 
 # 工作流输出
 class GraphOutput(BaseModel):
@@ -25,7 +26,7 @@ class GraphOutput(BaseModel):
 # 文件夹结构分析节点输入输出
 class AnalyzeStructureInput(BaseModel):
     """文件夹结构分析输入"""
-    component_path: str = Field(..., description="组件文件夹路径")
+    extracted_path: str = Field(..., description="解压后的组件文件夹路径")
 
 class AnalyzeStructureOutput(BaseModel):
     """文件夹结构分析输出"""
@@ -34,7 +35,7 @@ class AnalyzeStructureOutput(BaseModel):
 # 头文件函数提取节点输入输出
 class ExtractFunctionsInput(BaseModel):
     """头文件函数提取输入"""
-    component_path: str = Field(..., description="组件文件夹路径")
+    extracted_path: str = Field(..., description="解压后的组件文件夹路径")
 
 class ExtractFunctionsOutput(BaseModel):
     """头文件函数提取输出"""
@@ -43,7 +44,7 @@ class ExtractFunctionsOutput(BaseModel):
 # 函数调用关系分析节点输入输出
 class AnalyzeCallRelationInput(BaseModel):
     """函数调用关系分析输入"""
-    component_path: str = Field(..., description="组件文件夹路径")
+    extracted_path: str = Field(..., description="解压后的组件文件夹路径")
 
 class AnalyzeCallRelationOutput(BaseModel):
     """函数调用关系分析输出"""
@@ -78,3 +79,12 @@ class SaveReadmeInput(BaseModel):
 class SaveReadmeOutput(BaseModel):
     """README保存输出"""
     readme_file: File = Field(..., description="生成的README.md文件")
+
+# 解压缩节点输入输出
+class UnzipInput(BaseModel):
+    """解压缩输入"""
+    component_path: str = Field(..., description="组件文件夹路径或zip文件路径")
+
+class UnzipOutput(BaseModel):
+    """解压缩输出"""
+    extracted_path: str = Field(..., description="解压后的组件文件夹路径")

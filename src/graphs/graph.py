@@ -8,9 +8,12 @@ from graphs.state import (
     GraphInput,
     GraphOutput,
     SaveReadmeInput,
-    SaveReadmeOutput
+    SaveReadmeOutput,
+    UnzipInput,
+    UnzipOutput
 )
 from graphs.node import (
+    unzip_node,
     analyze_structure_node,
     extract_functions_node,
     analyze_call_relation_node,
@@ -42,6 +45,7 @@ def save_readme_node(state: SaveReadmeInput, config: RunnableConfig, runtime: Ru
 builder = StateGraph(GlobalState, input_schema=GraphInput, output_schema=GraphOutput)
 
 # 添加节点
+builder.add_node("unzip", unzip_node)
 builder.add_node("analyze_structure", analyze_structure_node)
 builder.add_node("extract_functions", extract_functions_node)
 builder.add_node("analyze_call_relation", analyze_call_relation_node, metadata={"type": "agent", "llm_cfg": "config/call_analysis_llm_cfg.json"})
@@ -50,9 +54,10 @@ builder.add_node("generate_readme", generate_readme_node)
 builder.add_node("save_readme", save_readme_node)
 
 # 设置入口点
-builder.set_entry_point("analyze_structure")
+builder.set_entry_point("unzip")
 
 # 添加边（线性流程）
+builder.add_edge("unzip", "analyze_structure")
 builder.add_edge("analyze_structure", "extract_functions")
 builder.add_edge("extract_functions", "analyze_call_relation")
 builder.add_edge("analyze_call_relation", "generate_flowchart")
