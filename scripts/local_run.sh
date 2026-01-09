@@ -60,7 +60,7 @@ if [ -f "${SCRIPT_DIR}/load_env.sh" ]; then
 fi
 
 # Build python command
-cmd="python ${WORK_DIR}/src/main.py -m \"$mode\""
+cmd="python3 ${WORK_DIR}/src/main.py -m \"$mode\""
 
 if [ -n "$node" ]; then
   cmd="$cmd -n \"$node\""

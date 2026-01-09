@@ -22,7 +22,7 @@ echo "输入路径: $COMPONENT_PATH"
 echo ""
 
 # 运行工作流
-python src/main.py -m flow -i "{\"component_path\": \"$COMPONENT_PATH\"}"
+python3 src/main.py -m flow -i "{\"component_path\": \"$COMPONENT_PATH\"}"
 
 # 检查执行结果
 if [ $? -eq 0 ]; then

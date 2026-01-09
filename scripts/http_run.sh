@@ -28,4 +28,4 @@ while getopts "p:h" opt; do
 done
 
 
-python ${WORK_DIR}/src/main.py -m http -p $PORT
+python3 ${WORK_DIR}/src/main.py -m http -p $PORT
