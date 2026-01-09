@@ -58,7 +58,9 @@ markdown-it-py==4.0.0
 MarkupSafe==3.0.3
 mccabe==0.7.0
 mdurl==0.1.2
+meson==1.10.0
 more-itertools==10.8.0
+ninja==1.13.0
 numpy==2.2.6
 openai==2.14.0
 opencv-python==4.12.0.88
