@@ -19,9 +19,71 @@ from graphs.state import (
     GenerateReadmeOutput,
     UnzipInput,
     UnzipOutput,
+    UploadLocalFileInput,
+    UploadLocalFileOutput,
 )
 import json
 from jinja2 import Template
+
+
+def upload_local_file_node(state: UploadLocalFileInput, config: RunnableConfig, runtime: Runtime[Context]) -> UploadLocalFileOutput:
+    """
+    title: 上传本地文件
+    desc: 如果是本地文件路径，上传到对象存储；如果是URL或目录，直接返回
+    integrations: 对象存储
+    """
+
+    path = state.component_path
+
+    # 如果是URL，直接返回
+    if path.startswith('http://') or path.startswith('https://'):
+        return UploadLocalFileOutput(zip_file_path=path)
+
+    # 如果是目录，直接返回
+    if os.path.isdir(path):
+        return UploadLocalFileOutput(zip_file_path=path)
+
+    # 如果是本地文件，上传到对象存储
+    if os.path.isfile(path):
+        try:
+            from coze_coding_dev_sdk.s3 import S3SyncStorage
+            import os as env_os
+
+            # 初始化对象存储
+            storage = S3SyncStorage(
+                endpoint_url=env_os.getenv("COZE_BUCKET_ENDPOINT_URL"),
+                access_key="",
+                secret_key="",
+                bucket_name=env_os.getenv("COZE_BUCKET_NAME"),
+                region="cn-beijing",
+            )
+
+            # 读取文件
+            filename = os.path.basename(path)
+            with open(path, 'rb') as f:
+                file_content = f.read()
+
+            # 上传到对象存储
+            file_key = storage.upload_file(
+                file_content=file_content,
+                file_name=filename,
+                content_type="application/zip" if filename.endswith('.zip') else "application/octet-stream",
+            )
+
+            # 生成下载URL
+            download_url = storage.generate_presigned_url(key=file_key, expire_time=3600)
+
+            print(f"✅ 文件已上传到对象存储: {file_key}")
+            print(f"📥 下载URL: {download_url}")
+
+            return UploadLocalFileOutput(zip_file_path=download_url)
+
+        except Exception as e:
+            print(f"⚠️ 上传对象存储失败: {str(e)}")
+            # 如果上传失败，返回本地路径
+            return UploadLocalFileOutput(zip_file_path=path)
+
+    raise Exception(f"路径无效: {path}")
 
 
 def unzip_node(state: UnzipInput, config: RunnableConfig, runtime: Runtime[Context]) -> UnzipOutput:
@@ -30,10 +92,40 @@ def unzip_node(state: UnzipInput, config: RunnableConfig, runtime: Runtime[Conte
     desc: 如果输入是zip文件，则解压到临时目录；如果是文件夹，直接返回
     """
 
-    path = state.component_path
+    path = state.zip_file_path
 
-    # 判断是否是zip文件
-    if path.endswith('.zip') or path.endswith('.ZIP'):
+    # 判断是否是URL
+    is_url = path.startswith('http://') or path.startswith('https://')
+
+    # 判断是否是zip文件（对于URL，检查路径部分）
+    if is_url or path.endswith('.zip') or path.endswith('.ZIP'):
+        # 如果是URL，先下载到临时文件
+        if is_url:
+            from urllib.parse import urlparse
+            import tempfile
+
+            # 解析URL获取文件名
+            parsed_url = urlparse(path)
+            filename = os.path.basename(parsed_url.path)
+
+            # 创建临时文件
+            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
+            temp_file.close()
+
+            try:
+                import requests
+                response = requests.get(path, timeout=120)
+                response.raise_for_status()
+
+                with open(temp_file.name, 'wb') as f:
+                    f.write(response.content)
+
+                print(f"已下载到: {temp_file.name}")
+                path = temp_file.name
+            except Exception as e:
+                os.unlink(temp_file.name)
+                raise Exception(f"下载失败: {str(e)}")
+
         # 创建临时解压目录
         import tempfile
         temp_dir = tempfile.mkdtemp(prefix="component_extracted_")
@@ -43,6 +135,10 @@ def unzip_node(state: UnzipInput, config: RunnableConfig, runtime: Runtime[Conte
                 zip_ref.extractall(temp_dir)
 
             print(f"已解压到: {temp_dir}")
+
+            # 如果是下载的临时文件，删除它
+            if is_url and 'temp_file' in locals():
+                os.unlink(temp_file.name)
 
             # 返回解压后的路径
             return UnzipOutput(extracted_path=temp_dir)

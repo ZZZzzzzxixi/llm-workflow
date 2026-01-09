@@ -6,6 +6,7 @@ from utils.file.file import File
 class GlobalState(BaseModel):
     """全局状态定义"""
     component_path: str = Field(default="", description="组件文件夹路径或zip文件路径")
+    zip_file_path: str = Field(default="", description="zip文件路径（可能是URL或本地路径）")
     extracted_path: str = Field(default="", description="解压后的组件文件夹路径")
     folder_structure: str = Field(default="", description="文件夹结构分析结果")
     header_functions: str = Field(default="", description="头文件函数信息")
@@ -83,8 +84,17 @@ class SaveReadmeOutput(BaseModel):
 # 解压缩节点输入输出
 class UnzipInput(BaseModel):
     """解压缩输入"""
-    component_path: str = Field(..., description="组件文件夹路径或zip文件路径")
+    zip_file_path: str = Field(..., description="zip文件路径（URL或本地路径）")
 
 class UnzipOutput(BaseModel):
     """解压缩输出"""
     extracted_path: str = Field(..., description="解压后的组件文件夹路径")
+
+# 本地文件上传节点输入输出
+class UploadLocalFileInput(BaseModel):
+    """本地文件上传输入"""
+    component_path: str = Field(..., description="组件文件夹路径或本地文件路径")
+
+class UploadLocalFileOutput(BaseModel):
+    """本地文件上传输出"""
+    zip_file_path: str = Field(..., description="zip文件路径（可能是上传后的URL或本地路径）")

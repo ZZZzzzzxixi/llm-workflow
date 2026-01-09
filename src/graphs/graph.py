@@ -10,9 +10,12 @@ from graphs.state import (
     SaveReadmeInput,
     SaveReadmeOutput,
     UnzipInput,
-    UnzipOutput
+    UnzipOutput,
+    UploadLocalFileInput,
+    UploadLocalFileOutput
 )
 from graphs.node import (
+    upload_local_file_node,
     unzip_node,
     analyze_structure_node,
     extract_functions_node,
@@ -45,6 +48,7 @@ def save_readme_node(state: SaveReadmeInput, config: RunnableConfig, runtime: Ru
 builder = StateGraph(GlobalState, input_schema=GraphInput, output_schema=GraphOutput)
 
 # 添加节点
+builder.add_node("upload_local_file", upload_local_file_node)
 builder.add_node("unzip", unzip_node)
 builder.add_node("analyze_structure", analyze_structure_node)
 builder.add_node("extract_functions", extract_functions_node)
@@ -54,9 +58,10 @@ builder.add_node("generate_readme", generate_readme_node)
 builder.add_node("save_readme", save_readme_node)
 
 # 设置入口点
-builder.set_entry_point("unzip")
+builder.set_entry_point("upload_local_file")
 
 # 添加边（线性流程）
+builder.add_edge("upload_local_file", "unzip")
 builder.add_edge("unzip", "analyze_structure")
 builder.add_edge("analyze_structure", "extract_functions")
 builder.add_edge("extract_functions", "analyze_call_relation")
