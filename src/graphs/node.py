@@ -33,7 +33,27 @@ def upload_local_file_node(state: UploadLocalFileInput, config: RunnableConfig, 
     integrations: 对象存储
     """
 
-    path = state.component_path
+    path = state.component_path.strip()  # 去除前后空格
+
+    # 检测Windows路径格式（D:/ 或 C:\ 等）
+    if re.match(r'^[A-Za-z]:[/\\]', path):
+        error_msg = f"""
+❌ 检测到Windows路径格式，无法在Linux环境中访问！
+路径: {path}
+
+解决方案：
+1. 如果在WSL中，请使用Linux路径格式：
+   Windows: D:/wsl-file-sharing/file.zip
+   WSL路径: /mnt/d/wsl-file-sharing/file.zip
+
+2. 如果文件在Windows上，请：
+   - 复制文件到Linux可访问的目录
+   - 或使用对象存储URL
+
+3. 如果使用WSL，正确的路径应该是：
+   /mnt/d/wsl-file-sharing/newbridge/robotics_svc_media.zip
+        """
+        raise Exception(error_msg.strip())
 
     # 如果是URL，直接返回
     if path.startswith('http://') or path.startswith('https://'):
@@ -83,7 +103,7 @@ def upload_local_file_node(state: UploadLocalFileInput, config: RunnableConfig, 
             # 如果上传失败，返回本地路径
             return UploadLocalFileOutput(zip_file_path=path)
 
-    raise Exception(f"路径无效: {path}")
+    raise Exception(f"❌ 路径无效或文件不存在: {path}\n\n请检查：\n1. 路径是否正确\n2. 文件是否存在\n3. 是否使用了Windows路径格式（应使用Linux路径）")
 
 
 def unzip_node(state: UnzipInput, config: RunnableConfig, runtime: Runtime[Context]) -> UnzipOutput:
