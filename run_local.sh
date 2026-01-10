@@ -15,10 +15,15 @@ fi
 
 COMPONENT_PATH="$1"
 
+# 设置工作目录环境变量
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export COZE_WORKSPACE_PATH="${SCRIPT_DIR}"
+
 echo "=========================================="
 echo "组件文档生成工作流 - 本地运行"
 echo "=========================================="
 echo "输入路径: $COMPONENT_PATH"
+echo "工作目录: ${COZE_WORKSPACE_PATH}"
 echo ""
 
 # 运行工作流
