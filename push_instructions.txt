@@ -1,0 +1,86 @@
+# 推送到 GitHub 的步骤
+
+## 方法一：使用 Personal Access Token（推荐）
+
+### 1. 创建 Token
+1. 访问 https://github.com/settings/tokens
+2. 点击 "Generate new token" -> "Generate new token (classic)"
+3. 设置名称（如 "llm-workflow"）
+4. 选择权限：勾选 `repo` (完整仓库访问权限)
+5. 点击 "Generate token"
+6. 复制生成的 token（只显示一次，务必保存）
+
+### 2. 推送代码
+```bash
+git push https://YOUR_TOKEN@github.com/ZZZzzzzxixi/llm-workflow.git main
+```
+
+将 `YOUR_TOKEN` 替换为你刚刚复制的 token。
+
+---
+
+## 方法二：配置 Git 凭证存储（一次性配置）
+
+```bash
+# 配置凭证存储（会保存凭证，以后不用重复输入）
+git config --global credential.helper store
+
+# 推送时会要求输入用户名和密码
+# 用户名：你的 GitHub 用户名
+# 密码：你的 GitHub Personal Access Token（不是登录密码）
+git push origin main
+```
+
+---
+
+## 方法三：使用 SSH（长期推荐）
+
+### 1. 生成 SSH 密钥
+```bash
+ssh-keygen -t ed25519 -C "your_email@example.com"
+# 一路回车即可
+```
+
+### 2. 查看公钥
+```bash
+cat ~/.ssh/id_ed25519.pub
+```
+
+### 3. 添加 SSH 公钥到 GitHub
+1. 访问 https://github.com/settings/ssh/new
+2. 复制公钥内容（从 cat 命令输出的内容）
+3. 粘贴到 GitHub 的 "Key" 字段
+4. 点击 "Add SSH key"
+
+### 4. 修改远程仓库 URL 为 SSH
+```bash
+git remote set-url origin git@github.com:ZZZzzzzxixi/llm-workflow.git
+```
+
+### 5. 推送代码
+```bash
+git push origin main
+```
+
+---
+
+## 推送成功的标志
+
+推送成功后，你会看到类似这样的输出：
+```
+Enumerating objects: 45, done.
+Counting objects: 100% (45/45), done.
+Delta compression using up to 8 threads
+Compressing objects: 100% (30/30), done.
+Writing objects: 100% (35/35), 8.45 KiB | 2.82 MiB/s, done.
+Total 35 (delta 10), reused 0 (delta 0)
+To https://github.com/ZZZzzzzxixi/llm-workflow.git
+   a575778..34e322a  main -> main
+```
+
+## 验证推送成功
+
+访问你的 GitHub 仓库：
+https://github.com/ZZZzzzzxixi/llm-workflow
+
+你应该能看到最新的6个提交记录。
