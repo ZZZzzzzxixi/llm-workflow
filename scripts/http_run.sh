@@ -28,4 +28,10 @@ while getopts "p:h" opt; do
 done
 
 
-python3 ${WORK_DIR}/src/main.py -m http -p $PORT
+# 优先使用 python3，如果不存在则使用 python
+PYTHON_CMD=python3
+if ! command -v python3 &> /dev/null; then
+    PYTHON_CMD=python
+fi
+
+$PYTHON_CMD ${WORK_DIR}/src/main.py -m http -p $PORT
