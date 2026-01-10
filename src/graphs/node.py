@@ -63,44 +63,54 @@ def upload_local_file_node(state: UploadLocalFileInput, config: RunnableConfig, 
     if os.path.isdir(path):
         return UploadLocalFileOutput(zip_file_path=path)
 
-    # 如果是本地文件，上传到对象存储
+    # 如果是本地文件，上传到对象存储（仅在Coze环境中）
     if os.path.isfile(path):
-        try:
-            from coze_coding_dev_sdk.s3 import S3SyncStorage
-            import os as env_os
+        # 检查是否在Coze环境中（通过环境变量判断）
+        in_coze_env = os.getenv('COZE_WORKSPACE_PATH') and (
+            os.getenv('COZE_BUCKET_ENDPOINT_URL') or os.getenv('COZE_BUCKET_NAME')
+        )
 
-            # 初始化对象存储
-            storage = S3SyncStorage(
-                endpoint_url=env_os.getenv("COZE_BUCKET_ENDPOINT_URL"),
-                access_key="",
-                secret_key="",
-                bucket_name=env_os.getenv("COZE_BUCKET_NAME"),
-                region="cn-beijing",
-            )
+        if in_coze_env:
+            try:
+                from coze_coding_dev_sdk.s3 import S3SyncStorage
+                import os as env_os
 
-            # 读取文件
-            filename = os.path.basename(path)
-            with open(path, 'rb') as f:
-                file_content = f.read()
+                # 初始化对象存储
+                storage = S3SyncStorage(
+                    endpoint_url=env_os.getenv("COZE_BUCKET_ENDPOINT_URL"),
+                    access_key="",
+                    secret_key="",
+                    bucket_name=env_os.getenv("COZE_BUCKET_NAME"),
+                    region="cn-beijing",
+                )
 
-            # 上传到对象存储
-            file_key = storage.upload_file(
-                file_content=file_content,
-                file_name=filename,
-                content_type="application/zip" if filename.endswith('.zip') else "application/octet-stream",
-            )
+                # 读取文件
+                filename = os.path.basename(path)
+                with open(path, 'rb') as f:
+                    file_content = f.read()
 
-            # 生成下载URL
-            download_url = storage.generate_presigned_url(key=file_key, expire_time=3600)
+                # 上传到对象存储
+                file_key = storage.upload_file(
+                    file_content=file_content,
+                    file_name=filename,
+                    content_type="application/zip" if filename.endswith('.zip') else "application/octet-stream",
+                )
 
-            print(f"✅ 文件已上传到对象存储: {file_key}")
-            print(f"📥 下载URL: {download_url}")
+                # 生成下载URL
+                download_url = storage.generate_presigned_url(key=file_key, expire_time=3600)
 
-            return UploadLocalFileOutput(zip_file_path=download_url)
+                print(f"✅ 文件已上传到对象存储: {file_key}")
+                print(f"📥 下载URL: {download_url}")
 
-        except Exception as e:
-            print(f"⚠️ 上传对象存储失败: {str(e)}")
-            # 如果上传失败，返回本地路径
+                return UploadLocalFileOutput(zip_file_path=download_url)
+
+            except Exception as e:
+                print(f"⚠️ 上传对象存储失败，将使用本地路径: {str(e)}")
+                # 如果上传失败，返回本地路径
+                return UploadLocalFileOutput(zip_file_path=path)
+        else:
+            # 本地环境，直接使用本地路径
+            print(f"📁 本地运行模式，使用本地文件路径: {path}")
             return UploadLocalFileOutput(zip_file_path=path)
 
     raise Exception(f"❌ 路径无效或文件不存在: {path}\n\n请检查：\n1. 路径是否正确\n2. 文件是否存在\n3. 是否使用了Windows路径格式（应使用Linux路径）")
