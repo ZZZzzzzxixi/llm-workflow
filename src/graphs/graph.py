@@ -28,8 +28,7 @@ from utils.file.file import File
 def save_readme_node(state: SaveReadmeInput, config: RunnableConfig, runtime: Runtime[Context]) -> SaveReadmeOutput:
     """
     title: 保存README文件
-    desc: 将生成的README内容保存到本地文件，并上传到对象存储
-    integrations: 对象存储
+    desc: 将生成的README内容保存到本地文件
     """
 
     # 保存到本地临时目录
@@ -37,12 +36,9 @@ def save_readme_node(state: SaveReadmeInput, config: RunnableConfig, runtime: Ru
     with open(readme_path, 'w', encoding='utf-8') as f:
         f.write(state.readme_content)
 
-    # TODO: 上传到对象存储
-    # 这里需要调用对象存储集成，将文件上传
-    # 返回File对象
-
-    # 临时返回本地文件
-    return SaveReadmeOutput(readme_file=File(url=readme_path, file_type="document"))
+    # TODO: 如果需要上传到对象存储，可以在这里实现
+    # 返回文件路径（本地环境）或URL（部署环境）
+    return SaveReadmeOutput(readme_url=readme_path)
 
 # 创建状态图，指定图的入参和出参
 builder = StateGraph(GlobalState, input_schema=GraphInput, output_schema=GraphOutput)

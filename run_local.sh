@@ -19,6 +19,9 @@ COMPONENT_PATH="$1"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export COZE_WORKSPACE_PATH="${SCRIPT_DIR}"
 
+# 设置大语言模型集成环境变量（本地运行必需）
+export COZE_INTEGRATION_MODEL_BASE_URL="https://ark.cn-beijing.volces.com/api/v3"
+
 echo "=========================================="
 echo "组件文档生成工作流 - 本地运行"
 echo "=========================================="

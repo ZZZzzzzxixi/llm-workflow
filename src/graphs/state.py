@@ -22,7 +22,7 @@ class GraphInput(BaseModel):
 # 工作流输出
 class GraphOutput(BaseModel):
     """工作流输出"""
-    readme_file: File = Field(..., description="生成的README.md文件")
+    readme_url: str = Field(..., description="生成的README.md文件URL或路径")
 
 # 文件夹结构分析节点输入输出
 class AnalyzeStructureInput(BaseModel):
@@ -79,7 +79,7 @@ class SaveReadmeInput(BaseModel):
 
 class SaveReadmeOutput(BaseModel):
     """README保存输出"""
-    readme_file: File = Field(..., description="生成的README.md文件")
+    readme_url: str = Field(..., description="生成的README.md文件URL或路径")
 
 # 解压缩节点输入输出
 class UnzipInput(BaseModel):

@@ -241,19 +241,26 @@ def extract_functions_node(state: ExtractFunctionsInput, config: RunnableConfig,
     """
 
     component_path = state.extracted_path
-    include_path = os.path.join(component_path, "include")
 
-    if not os.path.exists(include_path):
-        return ExtractFunctionsOutput(header_functions=f"❌ include 文件夹不存在于 {component_path}")
+    # 查找 include 文件夹（支持多层嵌套）
+    include_path = None
+    for root, dirs, files in os.walk(component_path):
+        if 'include' in dirs:
+            include_path = os.path.join(root, 'include')
+            break
+
+    if not include_path or not os.path.exists(include_path):
+        return ExtractFunctionsOutput(header_functions=f"❌ 未找到 include 文件夹于 {component_path}")
 
     result = ["## 头文件函数详细说明\n"]
 
     # 遍历所有 .h 文件
+    include_parent = os.path.dirname(include_path)
     for root, dirs, files in os.walk(include_path):
         for file in files:
             if file.endswith('.h'):
                 file_path = os.path.join(root, file)
-                relative_path = os.path.relpath(file_path, component_path)
+                relative_path = os.path.relpath(file_path, include_parent)
 
                 result.append(f"### {relative_path}\n")
 
