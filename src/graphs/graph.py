@@ -28,17 +28,45 @@ from utils.file.file import File
 def save_readme_node(state: SaveReadmeInput, config: RunnableConfig, runtime: Runtime[Context]) -> SaveReadmeOutput:
     """
     title: 保存README文件
-    desc: 将生成的README内容保存到本地文件
+    desc: 将生成的README内容保存到对象存储并返回可访问的URL
+    integrations: 对象存储
     """
+    import hashlib
+    from coze_coding_dev_sdk.s3 import S3SyncStorage
 
-    # 保存到本地临时目录
-    readme_path = "/tmp/README.md"
-    with open(readme_path, 'w', encoding='utf-8') as f:
-        f.write(state.readme_content)
+    # 生成唯一的文件名：README_前两段MD5.md
+    content_bytes = state.readme_content.encode('utf-8')
+    md5_hash = hashlib.md5(content_bytes).hexdigest()
+    file_prefix = f"{md5_hash[:8]}_{md5_hash[8:16]}"
+    file_name = f"README_{file_prefix}.md"
 
-    # TODO: 如果需要上传到对象存储，可以在这里实现
-    # 返回文件路径（本地环境）或URL（部署环境）
-    return SaveReadmeOutput(readme_url=readme_path)
+    # 上传到对象存储
+    storage = S3SyncStorage(
+        endpoint_url=os.getenv("COZE_BUCKET_ENDPOINT_URL"),
+        access_key="",
+        secret_key="",
+        bucket_name=os.getenv("COZE_BUCKET_NAME"),
+        region="cn-beijing",
+    )
+
+    try:
+        # 上传文件内容
+        key = storage.upload_file(
+            file_content=content_bytes,
+            file_name=file_name,
+            content_type="text/markdown",
+        )
+
+        # 生成签名URL（有效期30分钟）
+        readme_url = storage.generate_presigned_url(key=key, expire_time=1800)
+
+        return SaveReadmeOutput(readme_url=readme_url)
+    except Exception as e:
+        # 如果对象存储不可用，回退到本地文件
+        readme_path = f"/tmp/README_{file_prefix}.md"
+        with open(readme_path, 'w', encoding='utf-8') as f:
+            f.write(state.readme_content)
+        return SaveReadmeOutput(readme_url=f"local:{readme_path}")
 
 # 创建状态图，指定图的入参和出参
 builder = StateGraph(GlobalState, input_schema=GraphInput, output_schema=GraphOutput)
