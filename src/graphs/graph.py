@@ -50,11 +50,11 @@ def save_readme_node(state: SaveReadmeInput, config: RunnableConfig, runtime: Ru
     )
 
     try:
-        # 上传文件内容
+        # 上传文件内容（指定UTF-8编码，解决中文乱码问题）
         key = storage.upload_file(
             file_content=content_bytes,
             file_name=file_name,
-            content_type="text/markdown",
+            content_type="text/markdown; charset=utf-8",
         )
 
         # 生成签名URL（有效期30分钟）
