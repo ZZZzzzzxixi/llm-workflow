@@ -170,15 +170,32 @@ def unzip_node(state: UnzipInput, config: RunnableConfig, runtime: Runtime[Conte
             if is_url and 'temp_file' in locals():
                 os.unlink(temp_file.name)
 
-            # 返回解压后的路径
-            return UnzipOutput(extracted_path=temp_dir)
+            # 提取组件名称（从解压后的第一个子文件夹）
+            component_name = "Unknown"
+            try:
+                items = os.listdir(temp_dir)
+                if items:
+                    # 获取第一个文件夹作为组件名称
+                    first_item = items[0]
+                    if os.path.isdir(os.path.join(temp_dir, first_item)):
+                        component_name = first_item
+            except Exception:
+                component_name = "Component"
+
+            print(f"组件名称: {component_name}")
+
+            # 返回解压后的路径和组件名称
+            return UnzipOutput(extracted_path=temp_dir, component_name=component_name)
         except Exception as e:
             shutil.rmtree(temp_dir, ignore_errors=True)
             raise Exception(f"解压失败: {str(e)}")
     else:
         # 如果不是zip文件，直接返回原路径
         if os.path.isdir(path):
-            return UnzipOutput(extracted_path=path)
+            # 提取组件名称
+            component_name = os.path.basename(path.rstrip('/'))
+            print(f"组件名称: {component_name}")
+            return UnzipOutput(extracted_path=path, component_name=component_name)
         else:
             raise Exception(f"路径既不是zip文件也不是目录: {path}")
 
@@ -369,10 +386,13 @@ def analyze_structure_node(state: AnalyzeStructureInput, config: RunnableConfig,
 def extract_functions_node(state: ExtractFunctionsInput, config: RunnableConfig, runtime: Runtime[Context]) -> ExtractFunctionsOutput:
     """
     title: 头文件函数提取
-    desc: 提取include文件夹下.h内部的所有函数，详细说明函数名称、功能、输入参数、返回值、调用示例
+    desc: 提取include文件夹下.h内部的所有函数，使用大模型详细说明函数功能、输入参数、返回值、调用示例
+    integrations: 大语言模型
     """
 
     component_path = state.extracted_path
+    component_name = state.component_name
+    ctx = runtime.context
 
     # 查找 include 文件夹（支持多层嵌套）
     include_path = None
@@ -384,44 +404,104 @@ def extract_functions_node(state: ExtractFunctionsInput, config: RunnableConfig,
     if not include_path or not os.path.exists(include_path):
         return ExtractFunctionsOutput(header_functions=f"❌ 未找到 include 文件夹于 {component_path}")
 
-    result = ["## 头文件函数详细说明\n"]
+    # 收集所有头文件和源文件内容
+    header_content = []
+    source_content = []
 
-    # 遍历所有 .h 文件
     include_parent = os.path.dirname(include_path)
-    for root, dirs, files in os.walk(include_path):
+    for root, dirs, files in os.walk(component_path):
         for file in files:
-            if file.endswith('.h'):
-                file_path = os.path.join(root, file)
-                relative_path = os.path.relpath(file_path, include_parent)
+            file_path = os.path.join(root, file)
+            relative_path = os.path.relpath(file_path, component_path)
 
-                result.append(f"### {relative_path}\n")
+            try:
+                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    content = f.read()
 
-                try:
-                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                        content = f.read()
+                if file.endswith('.h'):
+                    header_content.append(f"\n// File: {relative_path}\n{content}\n")
+                elif file.endswith('.c') or file.endswith('.cpp'):
+                    source_content.append(f"\n// File: {relative_path}\n{content}\n")
+            except Exception as e:
+                pass
 
-                    # 提取函数定义（简化版，实际需要更复杂的解析）
-                    # 匹配函数声明模式：返回类型 函数名(参数)
-                    function_pattern = r'(?:[\w\s\*]+\s+)(\w+)\s*\(([^)]*)\)\s*(?:;|$)'
-                    functions = re.findall(function_pattern, content, re.MULTILINE)
+    # 使用大模型分析函数
+    all_code = "\n".join(header_content + source_content)
 
-                    if functions:
-                        for func_name, params in functions:
-                            result.append(f"#### 函数: `{func_name}`\n")
-                            result.append(f"- **函数名称**: `{func_name}`\n")
-                            result.append(f"- **输入参数**: `{params if params.strip() else 'void'}`\n")
-                            result.append(f"- **返回值**: 根据代码上下文推断\n")
-                            result.append(f"- **调用示例**: `TODO: 根据使用情况补充`\n")
-                            result.append("")
-                    else:
-                        result.append("*未找到函数定义*\n")
+    # 读取配置文件
+    cfg_file = os.path.join(os.getenv("COZE_WORKSPACE_PATH"), config['metadata']['llm_cfg'])
+    with open(cfg_file, 'r') as fd:
+        _cfg = json.load(fd)
 
-                    result.append("---\n")
+    llm_config = _cfg.get("config", {})
+    sp = _cfg.get("sp", "")
+    up = _cfg.get("up", "")
 
-                except Exception as e:
-                    result.append(f"❌ 读取文件失败: {str(e)}\n")
+    # 构建系统提示词
+    system_prompt = """你是C语言代码分析专家，负责分析头文件中的函数定义。
 
-    header_functions = "\n".join(result)
+请按照以下格式输出函数说明，使用Markdown格式：
+
+```markdown
+## 头文件函数详细说明
+
+### include/xxx.h
+
+#### 函数: `function_name`
+
+| 项目 | 说明 |
+|------|------|
+| **函数名称** | `function_name` |
+| **输入参数** | 参数说明 |
+| **返回值** | 返回值说明 |
+| **功能描述** | 详细说明函数的功能和用途 |
+
+**调用示例**：
+```c
+// 示例代码
+return_type result = function_name(param1, param2);
+```
+
+---
+
+#### 函数: `function_name2`
+...
+```
+
+注意事项：
+1. 从头文件提取函数声明
+2. 从源文件中提取函数实现和实际调用例程
+3. 如果源文件中有main函数或其他函数调用了该函数，提取相关代码作为示例
+4. 每个函数使用表格展示信息，确保对齐美观
+5. 调用示例使用代码块格式
+6. 只分析include文件夹下的头文件及其对应的实现
+"""
+
+    user_prompt = f"""请分析以下C代码的函数定义，并生成详细的函数说明文档：
+
+{all_code[:15000]}
+"""
+
+    # 调用大模型
+    from coze_coding_dev_sdk import LLMClient
+    from langchain_core.messages import SystemMessage, HumanMessage
+
+    client = LLMClient(ctx=ctx)
+    messages = [
+        SystemMessage(content=system_prompt),
+        HumanMessage(content=user_prompt)
+    ]
+
+    response = client.invoke(
+        messages=messages,
+        model=llm_config.get("model", "doubao-seed-1-6-251015"),
+        temperature=llm_config.get("temperature", 0.3),
+        top_p=llm_config.get("top_p", 0.7),
+        max_tokens=llm_config.get("max_tokens", 3000),
+        frequency_penalty=llm_config.get("frequency_penalty", 0)
+    )
+
+    header_functions = response.content
     return ExtractFunctionsOutput(header_functions=header_functions)
 
 
@@ -540,41 +620,197 @@ def generate_flowchart_node(state: GenerateFlowchartInput, config: RunnableConfi
 def generate_readme_node(state: GenerateReadmeInput, config: RunnableConfig, runtime: Runtime[Context]) -> GenerateReadmeOutput:
     """
     title: README生成
-    desc: 整合所有分析结果，生成美化的README.md文档，使用不同等级的标题
+    desc: 整合所有分析结果，生成美化的README.md文档，使用HTML样式和组件名称
     """
 
-    # 使用大模型整合和美化内容
-    readme_content = f"""# 组件文档
+    # 获取组件名称
+    component_name = state.component_name if hasattr(state, 'component_name') and state.component_name else "组件"
 
-> 自动生成的组件文档
+    # 使用HTML样式美化，添加Mermaid.js支持
+    readme_content = f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>{component_name}说明文档</title>
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({{ startOnLoad: true }});
+</script>
+<style>
+    body {{
+        font-family: "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", Arial, sans-serif;
+        line-height: 1.8;
+        color: #333;
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+        background-color: #f9f9f9;
+    }}
 
----
+    h1 {{
+        text-align: center;
+        color: #2c3e50;
+        border-bottom: 3px solid #3498db;
+        padding-bottom: 15px;
+        margin-bottom: 30px;
+        font-size: 2.5em;
+    }}
 
-## 目录结构
+    h2 {{
+        color: #34495e;
+        border-left: 5px solid #3498db;
+        padding-left: 15px;
+        margin-top: 40px;
+        margin-bottom: 20px;
+        background-color: white;
+        padding: 10px 15px;
+        border-radius: 5px;
+        font-size: 1.8em;
+    }}
+
+    h3 {{
+        color: #2980b9;
+        margin-top: 30px;
+        margin-bottom: 15px;
+        font-size: 1.5em;
+    }}
+
+    h4 {{
+        color: #1abc9c;
+        margin-top: 20px;
+        margin-bottom: 10px;
+        font-size: 1.3em;
+    }}
+
+    table {{
+        width: 100%;
+        border-collapse: collapse;
+        margin: 20px 0;
+        background-color: white;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }}
+
+    th, td {{
+        padding: 12px 15px;
+        text-align: left;
+        border: 1px solid #ddd;
+    }}
+
+    th {{
+        background-color: #3498db;
+        color: white;
+        font-weight: bold;
+        width: 25%;
+        text-align: left;
+    }}
+
+    tr:nth-child(even) {{
+        background-color: #f2f2f2;
+    }}
+
+    code {{
+        background-color: #f4f4f4;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-family: "Courier New", monospace;
+        font-size: 14px;
+        color: #e74c3c;
+    }}
+
+    pre {{
+        background-color: #282c34;
+        color: #abb2bf;
+        padding: 20px;
+        border-radius: 8px;
+        overflow-x: auto;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+    }}
+
+    pre code {{
+        background-color: transparent;
+        color: inherit;
+        padding: 0;
+    }}
+
+    blockquote {{
+        border-left: 4px solid #3498db;
+        padding-left: 20px;
+        margin: 20px 0;
+        color: #666;
+        background-color: #e8f4f8;
+        padding: 15px;
+        border-radius: 5px;
+    }}
+
+    .info-box {{
+        background-color: #d4edda;
+        border: 1px solid #c3e6cb;
+        color: #155724;
+        padding: 15px;
+        border-radius: 5px;
+        margin: 20px 0;
+        font-size: 16px;
+    }}
+
+    .mermaid {{
+        background-color: white;
+        padding: 20px;
+        border-radius: 8px;
+        margin: 20px 0;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        text-align: center;
+    }}
+
+    hr {{
+        border: none;
+        border-top: 2px solid #3498db;
+        margin: 40px 0;
+    }}
+</style>
+</head>
+<body>
+
+<h1>{component_name} 说明文档</h1>
+
+<div class="info-box">
+    <strong>📄 说明：</strong>本文档由代码分析工具自动生成，包含组件的目录结构、函数接口、调用关系和流程图。
+</div>
+
+<hr>
+
+<h2>📁 目录结构</h2>
 
 {state.folder_structure}
 
----
+<hr>
 
-## 头文件函数说明
+<h2>📋 头文件函数说明</h2>
 
 {state.header_functions}
 
----
+<hr>
 
-## 函数调用关系
+<h2>🔗 函数调用关系</h2>
 
 {state.call_relationship}
 
----
+<hr>
 
-## 处理流程图
+<h2>📊 处理流程图</h2>
 
+<div class="mermaid">
 {state.flow_diagrams}
+</div>
 
----
+<hr>
 
-*文档自动生成*
+<div style="text-align: center; color: #7f8c8d; margin-top: 50px; font-size: 14px;">
+    <p>📅 文档生成时间: {__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+    <p>🤖 由AI代码分析工具自动生成</p>
+</div>
+
+</body>
+</html>
 """
 
     return GenerateReadmeOutput(readme_content=readme_content)

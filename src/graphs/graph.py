@@ -34,11 +34,11 @@ def save_readme_node(state: SaveReadmeInput, config: RunnableConfig, runtime: Ru
     import hashlib
     from coze_coding_dev_sdk.s3 import S3SyncStorage
 
-    # 生成唯一的文件名：README_前两段MD5.md
+    # 生成唯一的文件名：README_前两段MD5.html（生成HTML格式）
     content_bytes = state.readme_content.encode('utf-8')
     md5_hash = hashlib.md5(content_bytes).hexdigest()
     file_prefix = f"{md5_hash[:8]}_{md5_hash[8:16]}"
-    file_name = f"README_{file_prefix}.md"
+    file_name = f"README_{file_prefix}.html"
 
     # 上传到对象存储
     storage = S3SyncStorage(
@@ -50,11 +50,11 @@ def save_readme_node(state: SaveReadmeInput, config: RunnableConfig, runtime: Ru
     )
 
     try:
-        # 上传文件内容（指定UTF-8编码，解决中文乱码问题）
+        # 上传文件内容（HTML格式，指定UTF-8编码，解决中文乱码问题）
         key = storage.upload_file(
             file_content=content_bytes,
             file_name=file_name,
-            content_type="text/markdown; charset=utf-8",
+            content_type="text/html; charset=utf-8",
         )
 
         # 生成签名URL（有效期30分钟）
@@ -75,7 +75,7 @@ builder = StateGraph(GlobalState, input_schema=GraphInput, output_schema=GraphOu
 builder.add_node("upload_local_file", upload_local_file_node)
 builder.add_node("unzip", unzip_node)
 builder.add_node("analyze_structure", analyze_structure_node)
-builder.add_node("extract_functions", extract_functions_node)
+builder.add_node("extract_functions", extract_functions_node, metadata={"type": "agent", "llm_cfg": "config/function_extract_llm_cfg.json"})
 builder.add_node("analyze_call_relation", analyze_call_relation_node, metadata={"type": "agent", "llm_cfg": "config/call_analysis_llm_cfg.json"})
 builder.add_node("generate_flowchart", generate_flowchart_node, metadata={"type": "agent", "llm_cfg": "config/flowchart_llm_cfg.json"})
 builder.add_node("generate_readme", generate_readme_node)

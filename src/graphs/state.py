@@ -6,6 +6,7 @@ from utils.file.file import File
 class GlobalState(BaseModel):
     """全局状态定义"""
     component_path: str = Field(default="", description="组件文件夹路径或zip文件路径")
+    component_name: str = Field(default="", description="组件名称（文件夹名称）")
     zip_file_path: str = Field(default="", description="zip文件路径（可能是URL或本地路径）")
     extracted_path: str = Field(default="", description="解压后的组件文件夹路径")
     folder_structure: str = Field(default="", description="文件夹结构分析结果")
@@ -22,7 +23,7 @@ class GraphInput(BaseModel):
 # 工作流输出
 class GraphOutput(BaseModel):
     """工作流输出"""
-    readme_url: str = Field(..., description="生成的README.md文件URL或路径")
+    readme_url: str = Field(..., description="生成的README.html文件URL或路径")
 
 # 文件夹结构分析节点输入输出
 class AnalyzeStructureInput(BaseModel):
@@ -37,6 +38,7 @@ class AnalyzeStructureOutput(BaseModel):
 class ExtractFunctionsInput(BaseModel):
     """头文件函数提取输入"""
     extracted_path: str = Field(..., description="解压后的组件文件夹路径")
+    component_name: str = Field(default="", description="组件名称")
 
 class ExtractFunctionsOutput(BaseModel):
     """头文件函数提取输出"""
@@ -63,6 +65,7 @@ class GenerateFlowchartOutput(BaseModel):
 # README生成节点输入输出
 class GenerateReadmeInput(BaseModel):
     """README生成输入"""
+    component_name: str = Field(default="", description="组件名称")
     folder_structure: str = Field(..., description="文件夹结构")
     header_functions: str = Field(..., description="头文件函数信息")
     call_relationship: str = Field(..., description="函数调用关系")
@@ -89,6 +92,7 @@ class UnzipInput(BaseModel):
 class UnzipOutput(BaseModel):
     """解压缩输出"""
     extracted_path: str = Field(..., description="解压后的组件文件夹路径")
+    component_name: str = Field(..., description="组件名称（文件夹名称）")
 
 # 本地文件上传节点输入输出
 class UploadLocalFileInput(BaseModel):
