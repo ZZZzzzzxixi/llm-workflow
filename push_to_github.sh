@@ -14,6 +14,32 @@ echo "仓库: https://${REPO}"
 echo "分支: ${BRANCH}"
 echo ""
 
+# 先同步远程仓库
+echo "📥 正在同步远程仓库..."
+git fetch https://${TOKEN}@${REPO} ${BRANCH}
+
+# 检查是否有冲突
+LOCAL=$(git rev-parse ${BRANCH})
+REMOTE=$(git rev-parse FETCH_HEAD)
+BASE=$(git merge-base @ @{u})
+
+if [ "$LOCAL" = "$REMOTE" ]; then
+    echo "✅ 本地已是最新"
+elif [ "$LOCAL" = "$BASE" ]; then
+    echo "📥 需要拉取远程更改..."
+    git pull --rebase https://${TOKEN}@${REPO} ${BRANCH}
+    echo "✅ 远程更改已同步"
+elif [ "$REMOTE" = "$BASE" ]; then
+    echo "✅ 准备推送本地更改..."
+else
+    echo "⚠️  检测到分叉，正在变基..."
+    git pull --rebase https://${TOKEN}@${REPO} ${BRANCH}
+    echo "✅ 变基完成"
+fi
+
+echo ""
+echo "📤 开始推送..."
+
 # 推送代码
 git push https://${TOKEN}@${REPO} ${BRANCH}
 
