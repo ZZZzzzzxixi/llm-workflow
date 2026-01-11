@@ -5,7 +5,6 @@
 直接运行以下命令：
 
 ```bash
-bash push_to_github.sh
 ```
 
 或者：
