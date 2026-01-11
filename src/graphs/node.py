@@ -186,52 +186,184 @@ def unzip_node(state: UnzipInput, config: RunnableConfig, runtime: Runtime[Conte
 def analyze_structure_node(state: AnalyzeStructureInput, config: RunnableConfig, runtime: Runtime[Context]) -> AnalyzeStructureOutput:
     """
     title: 文件夹结构分析
-    desc: 分析组件文件夹的层级结构，输出每个子文件夹的概括说明，特别关注include和src文件夹下的文件
+    desc: 分析组件文件夹的层级结构，识别开源代码库，输出树状结构
     """
 
     component_path = state.extracted_path
-    result = []
 
-    def analyze_directory(path: str, indent: int = 0) -> List[str]:
-        """递归分析目录结构"""
+    # 明确的第三方库/开源代码文件夹名称
+    OPENSOURCE_FOLDER_NAMES = [
+        'opencv', 'opencv_contrib', 'opencv_extra',
+        'tensorflow', 'tensorflow_cc', 'tensorflow_lite',
+        'pytorch', 'torch', 'caffe', 'mxnet',
+        'vendor', 'vendors', 'third_party', '3rdparty', 'external',
+        'libs', 'lib', 'dependencies', 'deps',
+        'build', 'cmake-build', 'out', 'bin',
+    ]
+
+    # 可能表示第三方库的特征文件（仅在根级别时才认为是开源库）
+    OPENSOURCE_MARKERS = [
+        '.git',
+    ]
+
+    def is_opensource_folder(folder_path: str, folder_name: str) -> bool:
+        """检查是否为开源代码库文件夹"""
+        if not os.path.isdir(folder_path):
+            return False
+
+        # 检查文件夹名称是否匹配已知的第三方库名称
+        if folder_name.lower() in [name.lower() for name in OPENSOURCE_FOLDER_NAMES]:
+            return True
+
+        # 检查是否存在.git文件夹（明确的版本控制标记）
+        git_folder = os.path.join(folder_path, '.git')
+        if os.path.exists(git_folder) and os.path.isdir(git_folder):
+            return True
+
+        # 检查是否存在 LICENSE 文件（仅当根目录有此文件时才认为是开源库）
+        # 注意：README.md 很常见，不应该作为判断依据
+        license_markers = ['LICENSE', 'LICENSE.txt', 'LICENSE.md', 'LICENSE.MIT',
+                          'COPYING', 'COPYRIGHT']
+        items = os.listdir(folder_path)
+        for marker in license_markers:
+            if marker in items:
+                return True
+
+        return False
+
+    def get_folder_comment(folder_name: str, path: str) -> str:
+        """根据文件夹名称生成注释说明"""
+        folder_lower = folder_name.lower()
+
+        # 常见文件夹的注释
+        comments = {
+            'include': '# 公共 API 头文件',
+            'src': '# 实现文件',
+            'lib': '# 第三方库',
+            'libs': '# 第三方库',
+            'vendor': '# 第三方依赖',
+            'third_party': '# 第三方依赖',
+            'build': '# 构建输出目录',
+            'cmake-build': '# CMake 构建输出',
+            'output': '# 输出目录',
+            'bin': '# 可执行文件',
+            'docs': '# 文档',
+            'doc': '# 文档',
+            'examples': '# 示例代码',
+            'example': '# 示例代码',
+            'tests': '# 测试代码',
+            'test': '# 测试代码',
+            'tools': '# 工具脚本',
+            'scripts': '# 脚本文件',
+            'config': '# 配置文件',
+            'configs': '# 配置文件',
+            'resources': '# 资源文件',
+            'assets': '# 资源文件',
+            'model': '# 模型文件',
+            'models': '# 模型文件',
+            'data': '# 数据文件',
+            'input': '# 输入数据',
+            'output': '# 输出数据',
+            'opencv': '# OpenCV 库',
+            'tensorflow': '# TensorFlow 库',
+            'pytorch': '# PyTorch 库',
+            'torch': '# PyTorch 库',
+            '.git': '# Git 版本控制',
+            'github': '# GitHub 相关文件',
+        }
+
+        return comments.get(folder_lower, '')
+
+    def analyze_directory(path: str, prefix: str = "", is_last: bool = True) -> str:
+        """递归分析目录结构，生成树状结构"""
         lines = []
-        prefix = "  " * indent
 
         try:
             items = sorted(os.listdir(path))
+
+            # 分离文件夹和文件
+            dirs = []
+            files = []
             for item in items:
                 full_path = os.path.join(path, item)
 
-                # 跳过隐藏文件
-                if item.startswith('.'):
+                # 跳过隐藏文件（.git, .gitignore 等除外，用于识别开源代码）
+                if item.startswith('.') and item not in ['.git', '.gitignore', '.gitmodules']:
                     continue
 
                 if os.path.isdir(full_path):
-                    lines.append(f"{prefix}📁 {item}/")
-                    sub_content = analyze_directory(full_path, indent + 1)
-                    lines.extend(sub_content)
-                elif os.path.isfile(full_path):
-                    # 特别关注 .h 和 .c 文件
-                    if item.endswith('.h') or item.endswith('.c'):
-                        lines.append(f"{prefix}  📄 {item} - (需要详细说明)")
+                    dirs.append(item)
+                else:
+                    files.append(item)
+
+            # 合并排序，文件夹在前
+            all_items = dirs + files
+            total = len(all_items)
+
+            for idx, item in enumerate(all_items):
+                full_path = os.path.join(path, item)
+                is_last_item = (idx == total - 1)
+
+                # 计算当前行的前缀和子项的前缀
+                if is_last:
+                    current_prefix = prefix + "└── "
+                    child_prefix = prefix + "    "
+                else:
+                    current_prefix = prefix + "├── "
+                    child_prefix = prefix + "│   "
+
+                if os.path.isdir(full_path):
+                    # 检查是否为开源代码库
+                    if is_opensource_folder(full_path, item):
+                        comment = "# [第三方库，略过详细说明]"
                     else:
-                        lines.append(f"{prefix}  📄 {item}")
+                        comment = get_folder_comment(item, full_path)
+
+                    line = current_prefix + item + "/"
+                    if comment:
+                        line += " " + comment
+                    lines.append(line)
+
+                    # 递归分析子文件夹（第三方库不再深入）
+                    if not is_opensource_folder(full_path, item):
+                        sub_content = analyze_directory(full_path, child_prefix, is_last_item)
+                        if sub_content:
+                            lines.append(sub_content)
+                else:
+                    # 文件处理
+                    # 特别关注 .h 和 .c/.cpp 文件
+                    if item.endswith('.h') or item.endswith('.hpp'):
+                        line = current_prefix + item + "       # 头文件"
+                    elif item.endswith('.c') or item.endswith('.cpp') or item.endswith('.cc'):
+                        line = current_prefix + item + "       # 源文件"
+                    else:
+                        line = current_prefix + item
+                    lines.append(line)
+
         except Exception as e:
             lines.append(f"{prefix}❌ 无法访问: {str(e)}")
 
-        return lines
+        return "\n".join(lines)
 
     # 开始分析
     if os.path.exists(component_path):
-        lines = [f"组件路径: {component_path}", ""]
-        lines.extend(analyze_directory(component_path))
+        # 获取根目录名称
+        root_name = os.path.basename(component_path.rstrip('/'))
 
-        # 生成概括说明
-        result = "\n".join(lines)
+        result_lines = []
+        result_lines.append("## 目录结构")
+        result_lines.append("")
+        result_lines.append("```")
+        result_lines.append(f"{root_name}/")
+        result_lines.append(analyze_directory(component_path, "", False))
+        result_lines.append("```")
+        result_lines.append("")
+
+        folder_structure = "\n".join(result_lines)
     else:
-        result = f"❌ 组件路径不存在: {component_path}"
+        folder_structure = f"❌ 组件路径不存在: {component_path}"
 
-    return AnalyzeStructureOutput(folder_structure=result)
+    return AnalyzeStructureOutput(folder_structure=folder_structure)
 
 
 def extract_functions_node(state: ExtractFunctionsInput, config: RunnableConfig, runtime: Runtime[Context]) -> ExtractFunctionsOutput:
