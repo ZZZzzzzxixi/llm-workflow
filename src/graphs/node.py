@@ -666,7 +666,7 @@ def generate_flowchart_node(state: GenerateFlowchartInput, config: RunnableConfi
 def generate_readme_node(state: GenerateReadmeInput, config: RunnableConfig, runtime: Runtime[Context]) -> GenerateReadmeOutput:
     """
     title: README生成
-    desc: 整合所有分析结果，生成HTML格式的README文档，保留Markdown内容，仅添加CSS样式美化字体
+    desc: 整合所有分析结果，生成美化的Markdown格式README.md文档
     """
 
     # 获取组件名称
@@ -679,243 +679,34 @@ def generate_readme_node(state: GenerateReadmeInput, config: RunnableConfig, run
     temp_dir_pattern = r'component_extracted_[a-zA-Z0-9_]+'
     folder_structure = re.sub(temp_dir_pattern, component_name, folder_structure)
 
-    # 转义HTML特殊字符，用于在HTML中显示原始Markdown内容
-    def escape_html(text):
-        """转义HTML特殊字符"""
-        return text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('"', '&quot;')
+    # 使用美化的Markdown格式，参考附件格式
+    readme_content = f"""# {component_name} 模块
 
-    # 生成HTML格式文档，使用CSS美化字体，但保留Markdown内容的原始格式
-    readme_content = f"""<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{component_name} 模块</title>
-    <style>
-        * {{
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }}
+## 简介
 
-        body {{
-            font-family: "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", Arial, "Helvetica Neue", sans-serif;
-            line-height: 1.8;
-            color: #333333;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-        }}
+本组件提供了一套完整的C语言API接口，用于实现核心功能。本文档由代码分析工具自动生成。
 
-        .container {{
-            max-width: 1200px;
-            margin: 40px auto;
-            background-color: #ffffff;
-            padding: 60px;
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-        }}
+## 目录结构
 
-        h1 {{
-            font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
-            font-size: 2.8em;
-            font-weight: 700;
-            color: #2c3e50;
-            text-align: center;
-            margin-bottom: 20px;
-            padding-bottom: 20px;
-            border-bottom: 4px solid #667eea;
-            letter-spacing: 2px;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
-        }}
+{folder_structure}
 
-        h2 {{
-            font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
-            font-size: 2.2em;
-            font-weight: 600;
-            color: #34495e;
-            margin-top: 50px;
-            margin-bottom: 25px;
-            padding-left: 20px;
-            border-left: 6px solid #667eea;
-            background: linear-gradient(to right, #f8f9fa, #ffffff);
-            padding: 15px 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-            letter-spacing: 1px;
-        }}
+## API 参考
 
-        h3 {{
-            font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
-            font-size: 1.8em;
-            font-weight: 600;
-            color: #2980b9;
-            margin-top: 40px;
-            margin-bottom: 20px;
-            letter-spacing: 0.5px;
-        }}
+{state.header_functions}
 
-        h4 {{
-            font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
-            font-size: 1.4em;
-            font-weight: 600;
-            color: #1abc9c;
-            margin-top: 30px;
-            margin-bottom: 15px;
-        }}
+## 函数调用关系
 
-        .markdown-content p {{
-            font-size: 1.05em;
-            color: #555555;
-            margin-bottom: 15px;
-            line-height: 1.9;
-            text-align: justify;
-        }}
+{state.call_relationship}
 
-        .markdown-content strong {{
-            color: #667eea;
-            font-weight: 600;
-        }}
+## 处理流程图
 
-        .markdown-content code {{
-            font-family: "Courier New", "Monaco", "Consolas", monospace;
-            background-color: #f1f3f4;
-            color: #e74c3c;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 0.95em;
-            border: 1px solid #e1e4e8;
-        }}
+```mermaid
+{state.flow_diagrams}
+```
 
-        .markdown-content pre {{
-            background: linear-gradient(135deg, #282c34 0%, #21252b 100%);
-            color: #abb2bf;
-            padding: 25px;
-            border-radius: 12px;
-            margin: 25px 0;
-            overflow-x: auto;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
-            border: 1px solid #3e4451;
-        }}
+---
 
-        .markdown-content pre code {{
-            background: none;
-            color: #abb2bf;
-            padding: 0;
-            font-size: 1em;
-            font-family: "Fira Code", "Consolas", "Monaco", monospace;
-        }}
-
-        .markdown-content hr {{
-            border: none;
-            border-top: 3px solid #667eea;
-            margin: 50px 0;
-            background: linear-gradient(to right, #667eea, #764ba2);
-            height: 3px;
-        }}
-
-        .markdown-content table {{
-            width: 100%;
-            border-collapse: collapse;
-            margin: 25px 0;
-            background-color: #ffffff;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-            border-radius: 8px;
-            overflow: hidden;
-        }}
-
-        .markdown-content th, .markdown-content td {{
-            padding: 15px 20px;
-            text-align: left;
-            border: 1px solid #e1e4e8;
-        }}
-
-        .markdown-content th {{
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: #ffffff;
-            font-weight: 600;
-            font-family: "Microsoft YaHei", sans-serif;
-            font-size: 1.05em;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }}
-
-        .markdown-content tr:nth-child(even) {{
-            background-color: #f8f9fa;
-        }}
-
-        .markdown-content tr:hover {{
-            background-color: #e8ecf3;
-            transition: background-color 0.3s ease;
-        }}
-
-        .folder-structure {{
-            background: linear-gradient(135deg, #282c34 0%, #21252b 100%);
-            color: #abb2bf;
-            padding: 25px;
-            border-radius: 12px;
-            margin: 25px 0;
-            overflow-x: auto;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
-            border: 1px solid #3e4451;
-        }}
-
-        .folder-structure code {{
-            background: none;
-            color: #abb2bf;
-            padding: 0;
-            font-size: 0.95em;
-            font-family: "Fira Code", "Consolas", "Monaco", monospace;
-            line-height: 1.6;
-            white-space: pre;
-        }}
-
-        .footer {{
-            text-align: center;
-            color: #999999;
-            margin-top: 60px;
-            padding-top: 30px;
-            border-top: 2px solid #e1e4e8;
-            font-size: 0.9em;
-        }}
-
-        .footer p {{
-            margin: 8px 0;
-        }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>{component_name} 模块</h1>
-
-        <div class="markdown-content">
-            <p><strong>简介</strong><br>本组件提供了一套完整的C语言API接口，用于实现核心功能。本文档由代码分析工具自动生成。</p>
-
-            <h2>目录结构</h2>
-            <div class="folder-structure">
-                <code>{escape_html(folder_structure)}</code>
-            </div>
-
-            <h2>API 参考</h2>
-            {escape_html(state.header_functions)}
-
-            <h2>函数调用关系</h2>
-            {escape_html(state.call_relationship)}
-
-            <h2>处理流程图</h2>
-            <div class="folder-structure">
-                <code class="mermaid">{escape_html(state.flow_diagrams)}</code>
-            </div>
-
-            <hr>
-
-            <div class="footer">
-                <p>📅 文档生成时间: {__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
-                <p>🤖 由AI代码分析工具自动生成</p>
-            </div>
-        </div>
-    </div>
-</body>
-</html>
+*文档生成时间: {__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*
 """
 
     return GenerateReadmeOutput(readme_content=readme_content)
