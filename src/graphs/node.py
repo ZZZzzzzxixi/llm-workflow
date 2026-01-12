@@ -404,7 +404,7 @@ def analyze_structure_node(state: AnalyzeStructureInput, config: RunnableConfig,
 def extract_functions_node(state: ExtractFunctionsInput, config: RunnableConfig, runtime: Runtime[Context]) -> ExtractFunctionsOutput:
     """
     title: 头文件函数提取
-    desc: 提取include文件夹下.h内部的所有函数，使用大模型详细说明函数功能、输入参数、返回值、调用示例
+    desc: 提取include文件夹下.h内部的所有函数，结合头文件注释和大模型分析，详细说明函数功能、输入参数、返回值、调用示例
     integrations: 大语言模型
     """
 
@@ -513,14 +513,17 @@ result = process_function_name(input, output);
 ```
 
 注意事项：
-1. 将函数按照功能分类（如：配置相关、初始化与清理、核心功能、辅助功能等）
-2. 每个分类使用三级标题（###）
-3. 每个函数使用四级标题（#### `function_name()`）
-4. 功能描述简洁明了，一句话说明
-5. 参数使用列表格式（**参数名称**: 说明）
-6. 返回值清晰说明（成功/失败及具体含义）
-7. 示例代码必须真实，从源代码中提取实际调用
-8. 只分析include文件夹下的头文件及其对应的实现
+1. **优先从include文件夹下的公共API头文件中提取函数声明和注释说明**
+2. 结合头文件中的已有注释和大模型分析，生成完整的函数说明
+3. 如果头文件中已有详细的注释说明，尽量保留原文含义
+4. 将函数按照功能分类（如：配置相关、初始化与清理、核心功能、辅助功能等）
+5. 每个分类使用三级标题（###）
+6. 每个函数使用四级标题（#### `function_name()`）
+7. 功能描述简洁明了，一句话说明
+8. 参数使用列表格式（**参数名称**: 说明）
+9. 返回值清晰说明（成功/失败及具体含义）
+10. 示例代码必须真实，从源代码中提取实际调用
+11. 只分析include文件夹下的头文件及其对应的实现
 """
 
     user_prompt = f"""请分析以下C代码的函数定义，并生成详细的函数说明文档：
