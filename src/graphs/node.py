@@ -683,105 +683,79 @@ def generate_readme_node(state: GenerateReadmeInput, config: RunnableConfig, run
     temp_dir_pattern = r'component_extracted_[a-zA-Z0-9_]+'
     folder_structure = re.sub(temp_dir_pattern, component_name, folder_structure)
 
-    # 从文件夹结构中提取主要模块
-    def extract_main_modules(folder_structure):
-        """从文件夹结构中提取主要模块"""
-        modules = []
-        # 查找常见的目录名称
-        common_dirs = [
-            r'(\w+)/\s*#\s*(公共|API|头文件)',
-            r'(\w+)/\s*#\s*(实现|源文件)',
-            r'(\w+)/\s*#\s*(第三方|vendor|依赖)',
-            r'(\w+)/\s*#\s*(模型|model)',
-            r'(\w+)/\s*#\s*(数据|data)',
-            r'(\w+)/\s*#\s*(工具|tool)',
-            r'(\w+)/\s*#\s*(文档|doc)',
-            r'(\w+)/\s*#\s*(测试|test)',
-        ]
-        for pattern in common_dirs:
-            matches = re.findall(pattern, folder_structure)
-            for match in matches:
-                if isinstance(match, tuple):
-                    modules.append(match[0])
-                else:
-                    modules.append(match)
-        # 去重并返回前5个
-        return list(set(modules))[:5]
+    # 从文件夹结构和调用关系中推断组件类型和功能
+    def analyze_component_type(folder_structure, call_relationship):
+        """分析组件类型和主要功能"""
+        component_types = []
+        features = []
 
-    main_modules = extract_main_modules(folder_structure)
+        # 检查文件夹结构中的关键词
+        fs_lower = folder_structure.lower()
+        cr_lower = call_relationship.lower()
 
-    # 从函数调用关系中提取关键功能
-    def extract_key_functions(call_relationship):
-        """从函数调用关系中提取关键功能"""
-        key_functions = []
-        # 查找关键阶段
-        patterns = [
-            r'初始化.*?[:：](.*?)(?:\n|$)',
-            r'视频.*?[:：](.*?)(?:\n|$)',
-            r'音频.*?[:：](.*?)(?:\n|$)',
-            r'采样线程.*?[:：](.*?)(?:\n|$)',
-            r'检测线程.*?[:：](.*?)(?:\n|$)',
-            r'object_detector.*?[:：](.*?)(?:\n|$)',
-        ]
-        for pattern in patterns:
-            matches = re.findall(pattern, call_relationship, re.MULTILINE)
-            for match in matches:
-                if match and len(match) > 0:
-                    clean_match = match.strip()[:50]  # 限制长度
-                    if clean_match:
-                        key_functions.append(clean_match)
-        # 去重并返回前5个
-        return list(set(key_functions))[:5]
+        # 视觉相关
+        if 'vision' in fs_lower or 'video' in fs_lower or 'camera' in fs_lower or 'frame' in fs_lower:
+            component_types.append('视觉处理')
+            features.append('图像采集与预处理')
+            features.append('目标检测与识别')
+        if 'object_detector' in cr_lower or 'detect' in cr_lower:
+            features.append('物体检测算法')
+            features.append('实时视频分析')
 
-    key_functions = extract_key_functions(state.call_relationship)
+        # 音频相关
+        if 'audio' in fs_lower or 'sound' in fs_lower or 'pcm' in fs_lower:
+            component_types.append('音频处理')
+            features.append('音频数据采集')
+            features.append('音频信号处理')
+        if 'sample' in fs_lower or 'sample' in cr_lower:
+            features.append('采样与编码')
 
-    # 从流程图中提取主要流程
-    def extract_main_flow(flow_diagrams):
-        """从流程图中提取主要流程"""
-        flows = []
-        # 查找主要节点
-        patterns = [
-            r'\[([^]]+初始化[^]]*)\]',
-            r'\[([^]]+线程[^]]*)\]',
-            r'\[([^]]+处理[^]]*)\]',
-        ]
-        for pattern in patterns:
-            matches = re.findall(pattern, flow_diagrams)
-            for match in matches:
-                if match:
-                    flows.append(match[:30])  # 限制长度
-        # 去重并返回前5个
-        return list(set(flows))[:5]
+        # 云端/网络相关
+        if 'media_stream' in fs_lower or 'stream' in fs_lower or 'cloud' in fs_lower:
+            component_types.append('云端连接')
+            features.append('流媒体传输')
+            features.append('云端数据同步')
+        if 'network' in fs_lower or 'net' in fs_lower:
+            component_types.append('网络通信')
+            features.append('网络数据传输')
 
-    main_flows = extract_main_flow(state.flow_diagrams)
+        # 模型/算法相关
+        if 'model' in fs_lower or 'detector' in fs_lower:
+            component_types.append('智能算法')
+            features.append('AI模型推理')
+            features.append('算法优化')
 
-    # 生成简介
-    introduction = f"""{component_name}模块是一个基于C语言开发的组件，本文档由代码分析工具自动生成。
+        # 通用功能
+        if 'init' in cr_lower or '初始化' in call_relationship:
+            features.append('组件初始化')
+        if 'thread' in cr_lower or '线程' in call_relationship:
+            features.append('多线程处理')
+        if 'buffer' in cr_lower or 'ring' in cr_lower:
+            features.append('数据缓冲管理')
 
-### 功能概述
-本组件提供了完整的C语言API接口，主要功能包括："""
+        # 如果没有识别到具体类型，使用通用描述
+        if not component_types:
+            component_types.append('功能组件')
+        if not features:
+            features.append('核心功能处理')
+            features.append('模块化接口设计')
 
-    # 添加关键功能
-    if key_functions:
-        for func in key_functions:
-            introduction += f"\n- {func}"
-    else:
-        introduction += "\n- 核心功能处理"
-        introduction += "\n- 模块化接口设计"
+        return component_types, features
 
-    # 添加主要模块
-    if main_modules:
-        introduction += "\n\n### 主要模块\n本组件包含以下主要模块："
-        for module in main_modules:
-            introduction += f"\n- `{module}`"
+    component_types, features = analyze_component_type(folder_structure, state.call_relationship)
 
-    # 添加主要流程
-    if main_flows:
-        introduction += "\n\n### 核心流程\n组件的主要处理流程包括："
-        for flow in main_flows:
-            introduction += f"\n- {flow}"
+    # 生成纯中文简介
+    # 组件类型描述
+    type_desc = "、".join(component_types[:3])  # 最多3个类型
 
-    introduction += f"""
+    # 功能描述
+    feature_desc = []
+    for feature in features[:5]:  # 最多5个功能
+        feature_desc.append(f"支持{feature}")
+
+    introduction = f"""{component_name}模块是一个基于C语言开发的{type_desc}组件，本文档由代码分析工具自动生成。
+
+本组件提供了完整的C语言API接口，{'，'.join(feature_desc)}。组件采用模块化设计，支持多线程并发处理，适用于嵌入式系统和应用开发场景。
 
 本文档详细介绍了组件的目录结构、API接口、函数调用关系和执行流程，帮助开发者快速理解和使用该组件。"""
 
