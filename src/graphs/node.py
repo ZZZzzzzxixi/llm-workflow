@@ -427,24 +427,83 @@ def extract_functions_node(state: ExtractFunctionsInput, config: RunnableConfig,
     source_content = []
 
     include_parent = os.path.dirname(include_path)
+
+    # 第三方库目录列表（跳过这些目录下的文件）
+    third_party_dirs = ['opencv', 'ffmpeg', 'protobuf', 'json', 'gtest', 'boost']
+
+    # 收集所有头文件和源文件内容
+    # 按优先级顺序收集：
+    # 1. 公共 API 头文件（根目录的 include/）
+    # 2. 子模块 API 头文件（src/*/include/）
+    # 3. 实现文件（所有 .c 和 .cpp 文件）
+    # 4. 内部头文件（src/*/src/）
+
+    public_api_headers = []
+    sub_module_api_headers = []
+    internal_headers = []
+    source_files = []
+
+    # 定义优先级检查函数
+    def get_file_priority(file_path, relative_path):
+        """返回文件的优先级：1=公共API，2=子模块API，3=实现文件，4=内部头文件"""
+        if relative_path.startswith('include/'):
+            return 1
+        elif '/include/' in relative_path and not any(tp in relative_path for tp in third_party_dirs):
+            return 2
+        elif file_path.endswith('.c') or file_path.endswith('.cpp'):
+            return 3
+        else:
+            return 4
+
+    # 按优先级排序收集文件
+    all_files = []
     for root, dirs, files in os.walk(component_path):
+        # 检查是否在第三方库目录下
+        relative_root = os.path.relpath(root, component_path)
+        is_third_party = any(tp_dir in relative_root for tp_dir in third_party_dirs)
+
+        if is_third_party:
+            continue  # 跳过第三方库目录
+
         for file in files:
             file_path = os.path.join(root, file)
             relative_path = os.path.relpath(file_path, component_path)
 
-            try:
-                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                    content = f.read()
+            # 只处理 .h, .c, .cpp 文件
+            if not (file.endswith('.h') or file.endswith('.c') or file.endswith('.cpp')):
+                continue
 
-                if file.endswith('.h'):
-                    header_content.append(f"\n// File: {relative_path}\n{content}\n")
-                elif file.endswith('.c') or file.endswith('.cpp'):
-                    source_content.append(f"\n// File: {relative_path}\n{content}\n")
-            except Exception as e:
-                pass
+            priority = get_file_priority(file_path, relative_path)
+            all_files.append((priority, file_path, relative_path))
 
-    # 使用大模型分析函数
-    all_code = "\n".join(header_content + source_content)
+    # 按优先级排序
+    all_files.sort(key=lambda x: x[0])
+
+    # 收集文件内容
+    for priority, file_path, relative_path in all_files:
+        try:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+
+            if file_path.endswith('.h'):
+                if priority == 1:
+                    public_api_headers.append(f"\n// File: {relative_path}\n{content}\n")
+                elif priority == 2:
+                    sub_module_api_headers.append(f"\n// File: {relative_path}\n{content}\n")
+                else:
+                    internal_headers.append(f"\n// File: {relative_path}\n{content}\n")
+            else:
+                source_files.append(f"\n// File: {relative_path}\n{content}\n")
+        except Exception as e:
+            pass
+
+    # 按优先级组合代码内容
+    all_code = "\n".join(
+        public_api_headers +
+        sub_module_api_headers +
+        source_files +
+        internal_headers
+    )
 
     # 读取配置文件
     cfg_file = os.path.join(os.getenv("COZE_WORKSPACE_PATH"), config['metadata']['llm_cfg'])
@@ -455,9 +514,9 @@ def extract_functions_node(state: ExtractFunctionsInput, config: RunnableConfig,
     sp = _cfg.get("sp", "")
     up = _cfg.get("up", "")
 
-    # 使用jinja2模板渲染用户提示词
+    # 使用jinja2模板渲染用户提示词（增加到30000字符）
     up_tpl = Template(up)
-    user_prompt = up_tpl.render({"code_content": all_code[:15000]})
+    user_prompt = up_tpl.render({"code_content": all_code[:30000]})
 
     # 调用大模型
     from coze_coding_dev_sdk import LLMClient
