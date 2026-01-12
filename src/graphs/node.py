@@ -563,26 +563,64 @@ def analyze_call_relation_node(state: AnalyzeCallRelationInput, config: Runnable
     sp = _cfg.get("sp", "")
     up = _cfg.get("up", "")
 
-    # 收集所有代码文件内容
+    # 收集所有代码文件内容，优先收集media_stream和object_detector相关代码
     code_content = []
+
+    # 定义优先级文件夹（这些文件夹的代码优先收集，且不限制长度）
+    priority_folders = ['media_stream', 'object_detector', 'vision', 'audio']
+
+    # 第一阶段：优先收集media_stream和object_detector的完整代码
     for root, dirs, files in os.walk(component_path):
         for file in files:
             if file.endswith('.c') or file.endswith('.h'):
                 file_path = os.path.join(root, file)
+                relative_path = os.path.relpath(file_path, component_path)
+
+                # 检查是否在优先级文件夹中
+                is_priority = False
+                for priority_folder in priority_folders:
+                    if f'/{priority_folder}/' in f'/{relative_path}' or relative_path.startswith(f'{priority_folder}/'):
+                        is_priority = True
+                        break
+
                 try:
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                         content = f.read()
-                        relative_path = os.path.relpath(file_path, component_path)
-                        # 增加代码长度限制，以便更全面地分析线程函数内容
-                        code_content.append(f"\n// File: {relative_path}\n{content[:5000]}\n")
+
+                    if is_priority:
+                        # 优先文件夹：收集完整代码
+                        code_content.append(f"\n// File: {relative_path}\n{content}\n")
                 except Exception as e:
                     code_content.append(f"\n// Error reading {file_path}: {str(e)}\n")
+
+    # 第二阶段：收集其他文件夹的代码（限制长度）
+    for root, dirs, files in os.walk(component_path):
+        for file in files:
+            if file.endswith('.c') or file.endswith('.h'):
+                file_path = os.path.join(root, file)
+                relative_path = os.path.relpath(file_path, component_path)
+
+                # 检查是否在优先级文件夹中
+                is_priority = False
+                for priority_folder in priority_folders:
+                    if f'/{priority_folder}/' in f'/{relative_path}' or relative_path.startswith(f'{priority_folder}/'):
+                        is_priority = True
+                        break
+
+                # 如果不是优先文件夹，才收集（限制长度）
+                if not is_priority:
+                    try:
+                        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                            content = f.read()
+                            code_content.append(f"\n// File: {relative_path}\n{content[:8000]}\n")
+                    except Exception as e:
+                        code_content.append(f"\n// Error reading {file_path}: {str(e)}\n")
 
     all_code = "\n".join(code_content)
 
     # 使用jinja2模板渲染提示词
     up_tpl = Template(up)
-    user_prompt_content = up_tpl.render({"code_content": all_code[:30000]})
+    user_prompt_content = up_tpl.render({"code_content": all_code[:80000]})
 
     # 调用大模型分析函数调用关系
     from coze_coding_dev_sdk import LLMClient
