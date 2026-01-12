@@ -666,7 +666,7 @@ def generate_flowchart_node(state: GenerateFlowchartInput, config: RunnableConfi
 def generate_readme_node(state: GenerateReadmeInput, config: RunnableConfig, runtime: Runtime[Context]) -> GenerateReadmeOutput:
     """
     title: README生成
-    desc: 整合所有分析结果，生成美化的HTML格式README文档
+    desc: 整合所有分析结果，生成HTML格式的README文档，保留Markdown内容，仅添加CSS样式美化字体
     """
 
     # 获取组件名称
@@ -679,61 +679,12 @@ def generate_readme_node(state: GenerateReadmeInput, config: RunnableConfig, run
     temp_dir_pattern = r'component_extracted_[a-zA-Z0-9_]+'
     folder_structure = re.sub(temp_dir_pattern, component_name, folder_structure)
 
-    # 处理Markdown内容，转换为HTML格式
-    def markdown_to_html(text):
-        """简单的Markdown转HTML转换"""
-        import re
-        lines = text.split('\n')
-        html_lines = []
-        in_code_block = False
-        code_content = []
+    # 转义HTML特殊字符，用于在HTML中显示原始Markdown内容
+    def escape_html(text):
+        """转义HTML特殊字符"""
+        return text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('"', '&quot;')
 
-        for line in lines:
-            # 处理代码块
-            if line.strip().startswith('```'):
-                if not in_code_block:
-                    in_code_block = True
-                    lang = line.strip()[3:].strip() if len(line.strip()) > 3 else ''
-                    html_lines.append(f'<pre><code class="{lang}">')
-                else:
-                    in_code_block = False
-                    html_lines.append('</code></pre>')
-                continue
-
-            if in_code_block:
-                code_content.append(line)
-                continue
-
-            # 处理标题
-            if line.startswith('## '):
-                html_lines.append(f'<h2>{line[3:]}</h2>')
-            elif line.startswith('### '):
-                html_lines.append(f'<h3>{line[4:]}</h3>')
-            elif line.startswith('#### '):
-                html_lines.append(f'<h4>{line[5:]}</h4>')
-            elif line.startswith('### '):
-                html_lines.append(f'<h3>{line[4:]}</h3>')
-            # 处理分隔线
-            elif line.strip() == '---':
-                html_lines.append('<hr>')
-            # 处理空行
-            elif not line.strip():
-                html_lines.append('<br>')
-            # 处理普通段落
-            elif line.strip():
-                # 转义HTML特殊字符
-                escaped = line.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-                # 处理行内代码
-                escaped = re.sub(r'`([^`]+)`', r'<code>\1</code>', escaped)
-                # 处理加粗
-                escaped = re.sub(r'\*\*([^*]+)\*\*', r'<strong>\1</strong>', escaped)
-                html_lines.append(f'<p>{escaped}</p>')
-            else:
-                html_lines.append(line)
-
-        return '\n'.join(html_lines)
-
-    # 生成HTML格式文档，使用CSS美化字体
+    # 生成HTML格式文档，使用CSS美化字体，但保留Markdown内容的原始格式
     readme_content = f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -812,7 +763,7 @@ def generate_readme_node(state: GenerateReadmeInput, config: RunnableConfig, run
             margin-bottom: 15px;
         }}
 
-        p {{
+        .markdown-content p {{
             font-size: 1.05em;
             color: #555555;
             margin-bottom: 15px;
@@ -820,12 +771,12 @@ def generate_readme_node(state: GenerateReadmeInput, config: RunnableConfig, run
             text-align: justify;
         }}
 
-        strong {{
+        .markdown-content strong {{
             color: #667eea;
             font-weight: 600;
         }}
 
-        code {{
+        .markdown-content code {{
             font-family: "Courier New", "Monaco", "Consolas", monospace;
             background-color: #f1f3f4;
             color: #e74c3c;
@@ -835,7 +786,7 @@ def generate_readme_node(state: GenerateReadmeInput, config: RunnableConfig, run
             border: 1px solid #e1e4e8;
         }}
 
-        pre {{
+        .markdown-content pre {{
             background: linear-gradient(135deg, #282c34 0%, #21252b 100%);
             color: #abb2bf;
             padding: 25px;
@@ -846,7 +797,7 @@ def generate_readme_node(state: GenerateReadmeInput, config: RunnableConfig, run
             border: 1px solid #3e4451;
         }}
 
-        pre code {{
+        .markdown-content pre code {{
             background: none;
             color: #abb2bf;
             padding: 0;
@@ -854,17 +805,7 @@ def generate_readme_node(state: GenerateReadmeInput, config: RunnableConfig, run
             font-family: "Fira Code", "Consolas", "Monaco", monospace;
         }}
 
-        blockquote {{
-            border-left: 5px solid #667eea;
-            margin: 25px 0;
-            padding: 20px 25px;
-            background: linear-gradient(to right, #e8ecf3, #ffffff);
-            color: #666666;
-            border-radius: 8px;
-            font-style: italic;
-        }}
-
-        hr {{
+        .markdown-content hr {{
             border: none;
             border-top: 3px solid #667eea;
             margin: 50px 0;
@@ -872,7 +813,7 @@ def generate_readme_node(state: GenerateReadmeInput, config: RunnableConfig, run
             height: 3px;
         }}
 
-        table {{
+        .markdown-content table {{
             width: 100%;
             border-collapse: collapse;
             margin: 25px 0;
@@ -882,13 +823,13 @@ def generate_readme_node(state: GenerateReadmeInput, config: RunnableConfig, run
             overflow: hidden;
         }}
 
-        th, td {{
+        .markdown-content th, .markdown-content td {{
             padding: 15px 20px;
             text-align: left;
             border: 1px solid #e1e4e8;
         }}
 
-        th {{
+        .markdown-content th {{
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: #ffffff;
             font-weight: 600;
@@ -898,13 +839,34 @@ def generate_readme_node(state: GenerateReadmeInput, config: RunnableConfig, run
             letter-spacing: 0.5px;
         }}
 
-        tr:nth-child(even) {{
+        .markdown-content tr:nth-child(even) {{
             background-color: #f8f9fa;
         }}
 
-        tr:hover {{
+        .markdown-content tr:hover {{
             background-color: #e8ecf3;
             transition: background-color 0.3s ease;
+        }}
+
+        .folder-structure {{
+            background: linear-gradient(135deg, #282c34 0%, #21252b 100%);
+            color: #abb2bf;
+            padding: 25px;
+            border-radius: 12px;
+            margin: 25px 0;
+            overflow-x: auto;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+            border: 1px solid #3e4451;
+        }}
+
+        .folder-structure code {{
+            background: none;
+            color: #abb2bf;
+            padding: 0;
+            font-size: 0.95em;
+            font-family: "Fira Code", "Consolas", "Monaco", monospace;
+            line-height: 1.6;
+            white-space: pre;
         }}
 
         .footer {{
@@ -925,25 +887,31 @@ def generate_readme_node(state: GenerateReadmeInput, config: RunnableConfig, run
     <div class="container">
         <h1>{component_name} 模块</h1>
 
-        <p><strong>简介</strong><br>本组件提供了一套完整的C语言API接口，用于实现核心功能。本文档由代码分析工具自动生成。</p>
+        <div class="markdown-content">
+            <p><strong>简介</strong><br>本组件提供了一套完整的C语言API接口，用于实现核心功能。本文档由代码分析工具自动生成。</p>
 
-        <h2>目录结构</h2>
-        <pre><code>{folder_structure}</code></pre>
+            <h2>目录结构</h2>
+            <div class="folder-structure">
+                <code>{escape_html(folder_structure)}</code>
+            </div>
 
-        <h2>API 参考</h2>
-        {markdown_to_html(state.header_functions)}
+            <h2>API 参考</h2>
+            {escape_html(state.header_functions)}
 
-        <h2>函数调用关系</h2>
-        {markdown_to_html(state.call_relationship)}
+            <h2>函数调用关系</h2>
+            {escape_html(state.call_relationship)}
 
-        <h2>处理流程图</h2>
-        <pre><code class="mermaid">{state.flow_diagrams}</code></pre>
+            <h2>处理流程图</h2>
+            <div class="folder-structure">
+                <code class="mermaid">{escape_html(state.flow_diagrams)}</code>
+            </div>
 
-        <hr>
+            <hr>
 
-        <div class="footer">
-            <p>📅 文档生成时间: {__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
-            <p>🤖 由AI代码分析工具自动生成</p>
+            <div class="footer">
+                <p>📅 文档生成时间: {__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+                <p>🤖 由AI代码分析工具自动生成</p>
+            </div>
         </div>
     </div>
 </body>
