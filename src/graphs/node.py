@@ -648,14 +648,21 @@ def generate_flowchart_node(state: GenerateFlowchartInput, config: RunnableConfi
 def generate_readme_node(state: GenerateReadmeInput, config: RunnableConfig, runtime: Runtime[Context]) -> GenerateReadmeOutput:
     """
     title: README生成
-    desc: 整合所有分析结果，生成Markdown格式的README.md文档
+    desc: 整合所有分析结果，生成美化的Markdown格式README.md文档
     """
 
     # 获取组件名称
     component_name = state.component_name if hasattr(state, 'component_name') and state.component_name else "组件"
 
-    # 使用Markdown格式，参考附件格式
-    readme_content = f"""# {component_name}
+    # 处理文件夹结构，替换临时目录名为组件名称
+    folder_structure = state.folder_structure
+    # 替换临时目录名（如component_extracted_xxxxxx）为组件名称
+    import re
+    temp_dir_pattern = r'component_extracted_[a-zA-Z0-9_]+'
+    folder_structure = re.sub(temp_dir_pattern, component_name, folder_structure)
+
+    # 使用美化的Markdown格式，参考附件格式
+    readme_content = f"""# {component_name} 模块
 
 ## 简介
 
@@ -663,7 +670,7 @@ def generate_readme_node(state: GenerateReadmeInput, config: RunnableConfig, run
 
 ## 目录结构
 
-{state.folder_structure}
+{folder_structure}
 
 ## API 参考
 
