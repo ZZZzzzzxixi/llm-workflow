@@ -422,18 +422,6 @@ def extract_functions_node(state: ExtractFunctionsInput, config: RunnableConfig,
     if not include_path or not os.path.exists(include_path):
         return ExtractFunctionsOutput(header_functions=f"❌ 未找到 include 文件夹于 {component_path}")
 
-    # 检查include文件夹内容，如果包含非.h文件，则忽略整个include文件夹
-    include_files = os.listdir(include_path)
-    has_non_header_files = any(
-        not file.endswith('.h') and not file.startswith('.')
-        for file in include_files
-    )
-
-    if has_non_header_files:
-        return ExtractFunctionsOutput(
-            header_functions=f"⚠️ include文件夹包含非.h文件，已忽略整个include文件夹的内容。\n\ninclude文件夹包含的文件：\n" + "\n".join([f"  - {f}" for f in include_files])
-        )
-
     # 收集所有头文件和源文件内容
     header_content = []
     source_content = []
@@ -458,16 +446,6 @@ def extract_functions_node(state: ExtractFunctionsInput, config: RunnableConfig,
     # 使用大模型分析函数
     all_code = "\n".join(header_content + source_content)
 
-    # 收集头文件列表
-    header_files = []
-    for root, dirs, files in os.walk(include_path):
-        for file in files:
-            if file.endswith('.h'):
-                relative_path = os.path.relpath(os.path.join(root, file), component_path)
-                # 在路径前面加上组件名称，生成完整路径格式：组件名/include/xxx.h
-                full_relative_path = f"{component_name}/{relative_path}"
-                header_files.append(full_relative_path)
-
     # 读取配置文件
     cfg_file = os.path.join(os.getenv("COZE_WORKSPACE_PATH"), config['metadata']['llm_cfg'])
     with open(cfg_file, 'r') as fd:
@@ -477,14 +455,78 @@ def extract_functions_node(state: ExtractFunctionsInput, config: RunnableConfig,
     sp = _cfg.get("sp", "")
     up = _cfg.get("up", "")
 
-    # 使用jinja2模板渲染用户提示词
-    up_tpl = Template(up)
-    # 添加头文件列表信息
-    header_files_info = "\n".join([f"- {f}" for f in sorted(header_files)])
-    user_prompt_content = up_tpl.render({
-        "code_content": all_code[:15000],
-        "header_files": header_files_info
-    })
+    # 构建系统提示词
+    system_prompt = """你是C语言代码分析专家，负责分析头文件中的函数定义。
+
+请按照以下格式输出函数说明，使用Markdown格式：
+
+```markdown
+### 配置相关
+
+#### `config_function_name()`
+获取或设置配置参数。
+
+**参数：**
+- `param1`: 参数1说明
+- `param2`: 参数2说明（可选）
+
+**返回值：** 返回值说明
+
+**示例：**
+```c
+// 示例代码
+config_type config = config_function_name();
+```
+
+### 初始化与清理
+
+#### `init_function_name()`
+初始化组件。
+
+**参数：**
+- `param1`: 参数1说明
+
+**返回值：** 0 成功，负数表示失败
+
+**示例：**
+```c
+if (init_function_name(param) != 0) {
+    printf("Init failed\\n");
+}
+```
+
+### 核心功能
+
+#### `process_function_name()`
+执行核心处理逻辑。
+
+**参数：**
+- `input`: 输入数据
+- `output`: 输出缓冲区
+
+**返回值：** 处理结果状态码
+
+**示例：**
+```c
+result = process_function_name(input, output);
+```
+```
+
+注意事项：
+1. 将函数按照功能分类（如：配置相关、初始化与清理、核心功能、辅助功能等）
+2. 每个分类使用三级标题（###）
+3. 每个函数使用四级标题（#### `function_name()`）
+4. 功能描述简洁明了，一句话说明
+5. 参数使用列表格式（**参数名称**: 说明）
+6. 返回值清晰说明（成功/失败及具体含义）
+7. 示例代码必须真实，从源代码中提取实际调用
+8. 只分析include文件夹下的头文件及其对应的实现
+"""
+
+    user_prompt = f"""请分析以下C代码的函数定义，并生成详细的函数说明文档：
+
+{all_code[:15000]}
+"""
 
     # 调用大模型
     from coze_coding_dev_sdk import LLMClient
@@ -492,8 +534,8 @@ def extract_functions_node(state: ExtractFunctionsInput, config: RunnableConfig,
 
     client = LLMClient(ctx=ctx)
     messages = [
-        SystemMessage(content=sp),
-        HumanMessage(content=user_prompt_content)
+        SystemMessage(content=system_prompt),
+        HumanMessage(content=user_prompt)
     ]
 
     response = client.invoke(
