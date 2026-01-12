@@ -464,7 +464,9 @@ def extract_functions_node(state: ExtractFunctionsInput, config: RunnableConfig,
         for file in files:
             if file.endswith('.h'):
                 relative_path = os.path.relpath(os.path.join(root, file), component_path)
-                header_files.append(relative_path)
+                # 在路径前面加上组件名称，生成完整路径格式：组件名/include/xxx.h
+                full_relative_path = f"{component_name}/{relative_path}"
+                header_files.append(full_relative_path)
 
     # 读取配置文件
     cfg_file = os.path.join(os.getenv("COZE_WORKSPACE_PATH"), config['metadata']['llm_cfg'])
