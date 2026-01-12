@@ -336,9 +336,15 @@ def analyze_structure_node(state: AnalyzeStructureInput, config: RunnableConfig,
                     else:
                         comment = get_folder_comment(item, full_path)
 
-                    line = current_prefix + item + "/"
+                    base_text = current_prefix + item + "/"
                     if comment:
-                        line += " " + comment
+                        # 计算对齐空格数，目标对齐到第40列
+                        current_length = len(base_text)
+                        target_column = 40
+                        spaces = max(target_column - current_length, 1)
+                        line = base_text + " " * spaces + comment
+                    else:
+                        line = base_text
                     lines.append(line)
 
                     # 递归分析子文件夹（第三方库不再深入）
@@ -350,11 +356,23 @@ def analyze_structure_node(state: AnalyzeStructureInput, config: RunnableConfig,
                     # 文件处理
                     # 特别关注 .h 和 .c/.cpp 文件
                     if item.endswith('.h') or item.endswith('.hpp'):
-                        line = current_prefix + item + "       # 头文件"
+                        base_text = current_prefix + item
+                        comment = "# 头文件"
                     elif item.endswith('.c') or item.endswith('.cpp') or item.endswith('.cc'):
-                        line = current_prefix + item + "       # 源文件"
+                        base_text = current_prefix + item
+                        comment = "# 源文件"
                     else:
-                        line = current_prefix + item
+                        base_text = current_prefix + item
+                        comment = ""
+
+                    # 计算对齐空格数，目标对齐到第40列
+                    if comment:
+                        current_length = len(base_text)
+                        target_column = 40
+                        spaces = max(target_column - current_length, 1)
+                        line = base_text + " " * spaces + comment
+                    else:
+                        line = base_text
                     lines.append(line)
 
         except Exception as e:
