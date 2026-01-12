@@ -455,81 +455,9 @@ def extract_functions_node(state: ExtractFunctionsInput, config: RunnableConfig,
     sp = _cfg.get("sp", "")
     up = _cfg.get("up", "")
 
-    # 构建系统提示词
-    system_prompt = """你是C语言代码分析专家，负责分析头文件中的函数定义。
-
-请按照以下格式输出函数说明，使用Markdown格式：
-
-```markdown
-### 配置相关
-
-#### `config_function_name()`
-获取或设置配置参数。
-
-**参数：**
-- `param1`: 参数1说明
-- `param2`: 参数2说明（可选）
-
-**返回值：** 返回值说明
-
-**示例：**
-```c
-// 示例代码
-config_type config = config_function_name();
-```
-
-### 初始化与清理
-
-#### `init_function_name()`
-初始化组件。
-
-**参数：**
-- `param1`: 参数1说明
-
-**返回值：** 0 成功，负数表示失败
-
-**示例：**
-```c
-if (init_function_name(param) != 0) {
-    printf("Init failed\\n");
-}
-```
-
-### 核心功能
-
-#### `process_function_name()`
-执行核心处理逻辑。
-
-**参数：**
-- `input`: 输入数据
-- `output`: 输出缓冲区
-
-**返回值：** 处理结果状态码
-
-**示例：**
-```c
-result = process_function_name(input, output);
-```
-```
-
-注意事项：
-1. **优先从include文件夹下的公共API头文件中提取函数声明和注释说明**
-2. 结合头文件中的已有注释和大模型分析，生成完整的函数说明
-3. 如果头文件中已有详细的注释说明，尽量保留原文含义
-4. 将函数按照功能分类（如：配置相关、初始化与清理、核心功能、辅助功能等）
-5. 每个分类使用三级标题（###）
-6. 每个函数使用四级标题（#### `function_name()`）
-7. 功能描述简洁明了，一句话说明
-8. 参数使用列表格式（**参数名称**: 说明）
-9. 返回值清晰说明（成功/失败及具体含义）
-10. 示例代码必须真实，从源代码中提取实际调用
-11. 只分析include文件夹下的头文件及其对应的实现
-"""
-
-    user_prompt = f"""请分析以下C代码的函数定义，并生成详细的函数说明文档：
-
-{all_code[:15000]}
-"""
+    # 使用jinja2模板渲染用户提示词
+    up_tpl = Template(up)
+    user_prompt = up_tpl.render({"code_content": all_code[:15000]})
 
     # 调用大模型
     from coze_coding_dev_sdk import LLMClient
@@ -537,7 +465,7 @@ result = process_function_name(input, output);
 
     client = LLMClient(ctx=ctx)
     messages = [
-        SystemMessage(content=system_prompt),
+        SystemMessage(content=sp),
         HumanMessage(content=user_prompt)
     ]
 
@@ -766,8 +694,6 @@ def generate_readme_node(state: GenerateReadmeInput, config: RunnableConfig, run
 
 {introduction}
 
-## 目录结构
-
 {folder_structure}
 
 ## API 参考
@@ -780,9 +706,7 @@ def generate_readme_node(state: GenerateReadmeInput, config: RunnableConfig, run
 
 ## 处理流程图
 
-```mermaid
 {state.flow_diagrams}
-```
 
 ---
 
