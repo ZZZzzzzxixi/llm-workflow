@@ -443,38 +443,66 @@ def extract_functions_node(state: ExtractFunctionsInput, config: RunnableConfig,
 请按照以下格式输出函数说明，使用Markdown格式：
 
 ```markdown
-## 头文件函数详细说明
+### 配置相关
 
-### include/xxx.h
+#### `config_function_name()`
+获取或设置配置参数。
 
-#### 函数: `function_name`
+**参数：**
+- `param1`: 参数1说明
+- `param2`: 参数2说明（可选）
 
-| 项目 | 说明 |
-|------|------|
-| **函数名称** | `function_name` |
-| **输入参数** | 参数说明 |
-| **返回值** | 返回值说明 |
-| **功能描述** | 详细说明函数的功能和用途 |
+**返回值：** 返回值说明
 
-**调用示例**：
+**示例：**
 ```c
 // 示例代码
-return_type result = function_name(param1, param2);
+config_type config = config_function_name();
 ```
 
----
+### 初始化与清理
 
-#### 函数: `function_name2`
-...
+#### `init_function_name()`
+初始化组件。
+
+**参数：**
+- `param1`: 参数1说明
+
+**返回值：** 0 成功，负数表示失败
+
+**示例：**
+```c
+if (init_function_name(param) != 0) {
+    printf("Init failed\\n");
+}
+```
+
+### 核心功能
+
+#### `process_function_name()`
+执行核心处理逻辑。
+
+**参数：**
+- `input`: 输入数据
+- `output`: 输出缓冲区
+
+**返回值：** 处理结果状态码
+
+**示例：**
+```c
+result = process_function_name(input, output);
+```
 ```
 
 注意事项：
-1. 从头文件提取函数声明
-2. 从源文件中提取函数实现和实际调用例程
-3. 如果源文件中有main函数或其他函数调用了该函数，提取相关代码作为示例
-4. 每个函数使用表格展示信息，确保对齐美观
-5. 调用示例使用代码块格式
-6. 只分析include文件夹下的头文件及其对应的实现
+1. 将函数按照功能分类（如：配置相关、初始化与清理、核心功能、辅助功能等）
+2. 每个分类使用三级标题（###）
+3. 每个函数使用四级标题（#### `function_name()`）
+4. 功能描述简洁明了，一句话说明
+5. 参数使用列表格式（**参数名称**: 说明）
+6. 返回值清晰说明（成功/失败及具体含义）
+7. 示例代码必须真实，从源代码中提取实际调用
+8. 只分析include文件夹下的头文件及其对应的实现
 """
 
     user_prompt = f"""请分析以下C代码的函数定义，并生成详细的函数说明文档：
@@ -620,197 +648,40 @@ def generate_flowchart_node(state: GenerateFlowchartInput, config: RunnableConfi
 def generate_readme_node(state: GenerateReadmeInput, config: RunnableConfig, runtime: Runtime[Context]) -> GenerateReadmeOutput:
     """
     title: README生成
-    desc: 整合所有分析结果，生成美化的README.md文档，使用HTML样式和组件名称
+    desc: 整合所有分析结果，生成Markdown格式的README.md文档
     """
 
     # 获取组件名称
     component_name = state.component_name if hasattr(state, 'component_name') and state.component_name else "组件"
 
-    # 使用HTML样式美化，添加Mermaid.js支持
-    readme_content = f"""<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<title>{component_name}说明文档</title>
-<script type="module">
-  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
-  mermaid.initialize({{ startOnLoad: true }});
-</script>
-<style>
-    body {{
-        font-family: "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", Arial, sans-serif;
-        line-height: 1.8;
-        color: #333;
-        max-width: 1200px;
-        margin: 0 auto;
-        padding: 20px;
-        background-color: #f9f9f9;
-    }}
+    # 使用Markdown格式，参考附件格式
+    readme_content = f"""# {component_name}
 
-    h1 {{
-        text-align: center;
-        color: #2c3e50;
-        border-bottom: 3px solid #3498db;
-        padding-bottom: 15px;
-        margin-bottom: 30px;
-        font-size: 2.5em;
-    }}
+## 简介
 
-    h2 {{
-        color: #34495e;
-        border-left: 5px solid #3498db;
-        padding-left: 15px;
-        margin-top: 40px;
-        margin-bottom: 20px;
-        background-color: white;
-        padding: 10px 15px;
-        border-radius: 5px;
-        font-size: 1.8em;
-    }}
+本组件提供了一套完整的C语言API接口，用于实现核心功能。本文档由代码分析工具自动生成。
 
-    h3 {{
-        color: #2980b9;
-        margin-top: 30px;
-        margin-bottom: 15px;
-        font-size: 1.5em;
-    }}
-
-    h4 {{
-        color: #1abc9c;
-        margin-top: 20px;
-        margin-bottom: 10px;
-        font-size: 1.3em;
-    }}
-
-    table {{
-        width: 100%;
-        border-collapse: collapse;
-        margin: 20px 0;
-        background-color: white;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }}
-
-    th, td {{
-        padding: 12px 15px;
-        text-align: left;
-        border: 1px solid #ddd;
-    }}
-
-    th {{
-        background-color: #3498db;
-        color: white;
-        font-weight: bold;
-        width: 25%;
-        text-align: left;
-    }}
-
-    tr:nth-child(even) {{
-        background-color: #f2f2f2;
-    }}
-
-    code {{
-        background-color: #f4f4f4;
-        padding: 2px 6px;
-        border-radius: 3px;
-        font-family: "Courier New", monospace;
-        font-size: 14px;
-        color: #e74c3c;
-    }}
-
-    pre {{
-        background-color: #282c34;
-        color: #abb2bf;
-        padding: 20px;
-        border-radius: 8px;
-        overflow-x: auto;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.2);
-    }}
-
-    pre code {{
-        background-color: transparent;
-        color: inherit;
-        padding: 0;
-    }}
-
-    blockquote {{
-        border-left: 4px solid #3498db;
-        padding-left: 20px;
-        margin: 20px 0;
-        color: #666;
-        background-color: #e8f4f8;
-        padding: 15px;
-        border-radius: 5px;
-    }}
-
-    .info-box {{
-        background-color: #d4edda;
-        border: 1px solid #c3e6cb;
-        color: #155724;
-        padding: 15px;
-        border-radius: 5px;
-        margin: 20px 0;
-        font-size: 16px;
-    }}
-
-    .mermaid {{
-        background-color: white;
-        padding: 20px;
-        border-radius: 8px;
-        margin: 20px 0;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        text-align: center;
-    }}
-
-    hr {{
-        border: none;
-        border-top: 2px solid #3498db;
-        margin: 40px 0;
-    }}
-</style>
-</head>
-<body>
-
-<h1>{component_name} 说明文档</h1>
-
-<div class="info-box">
-    <strong>📄 说明：</strong>本文档由代码分析工具自动生成，包含组件的目录结构、函数接口、调用关系和流程图。
-</div>
-
-<hr>
-
-<h2>📁 目录结构</h2>
+## 目录结构
 
 {state.folder_structure}
 
-<hr>
-
-<h2>📋 头文件函数说明</h2>
+## API 参考
 
 {state.header_functions}
 
-<hr>
-
-<h2>🔗 函数调用关系</h2>
+## 函数调用关系
 
 {state.call_relationship}
 
-<hr>
+## 处理流程图
 
-<h2>📊 处理流程图</h2>
-
-<div class="mermaid">
+```mermaid
 {state.flow_diagrams}
-</div>
+```
 
-<hr>
+---
 
-<div style="text-align: center; color: #7f8c8d; margin-top: 50px; font-size: 14px;">
-    <p>📅 文档生成时间: {__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
-    <p>🤖 由AI代码分析工具自动生成</p>
-</div>
-
-</body>
-</html>
+*文档生成时间: {__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*
 """
 
     return GenerateReadmeOutput(readme_content=readme_content)
