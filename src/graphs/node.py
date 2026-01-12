@@ -683,12 +683,114 @@ def generate_readme_node(state: GenerateReadmeInput, config: RunnableConfig, run
     temp_dir_pattern = r'component_extracted_[a-zA-Z0-9_]+'
     folder_structure = re.sub(temp_dir_pattern, component_name, folder_structure)
 
+    # 从文件夹结构中提取主要模块
+    def extract_main_modules(folder_structure):
+        """从文件夹结构中提取主要模块"""
+        modules = []
+        # 查找常见的目录名称
+        common_dirs = [
+            r'(\w+)/\s*#\s*(公共|API|头文件)',
+            r'(\w+)/\s*#\s*(实现|源文件)',
+            r'(\w+)/\s*#\s*(第三方|vendor|依赖)',
+            r'(\w+)/\s*#\s*(模型|model)',
+            r'(\w+)/\s*#\s*(数据|data)',
+            r'(\w+)/\s*#\s*(工具|tool)',
+            r'(\w+)/\s*#\s*(文档|doc)',
+            r'(\w+)/\s*#\s*(测试|test)',
+        ]
+        for pattern in common_dirs:
+            matches = re.findall(pattern, folder_structure)
+            for match in matches:
+                if isinstance(match, tuple):
+                    modules.append(match[0])
+                else:
+                    modules.append(match)
+        # 去重并返回前5个
+        return list(set(modules))[:5]
+
+    main_modules = extract_main_modules(folder_structure)
+
+    # 从函数调用关系中提取关键功能
+    def extract_key_functions(call_relationship):
+        """从函数调用关系中提取关键功能"""
+        key_functions = []
+        # 查找关键阶段
+        patterns = [
+            r'初始化.*?[:：](.*?)(?:\n|$)',
+            r'视频.*?[:：](.*?)(?:\n|$)',
+            r'音频.*?[:：](.*?)(?:\n|$)',
+            r'采样线程.*?[:：](.*?)(?:\n|$)',
+            r'检测线程.*?[:：](.*?)(?:\n|$)',
+            r'object_detector.*?[:：](.*?)(?:\n|$)',
+        ]
+        for pattern in patterns:
+            matches = re.findall(pattern, call_relationship, re.MULTILINE)
+            for match in matches:
+                if match and len(match) > 0:
+                    clean_match = match.strip()[:50]  # 限制长度
+                    if clean_match:
+                        key_functions.append(clean_match)
+        # 去重并返回前5个
+        return list(set(key_functions))[:5]
+
+    key_functions = extract_key_functions(state.call_relationship)
+
+    # 从流程图中提取主要流程
+    def extract_main_flow(flow_diagrams):
+        """从流程图中提取主要流程"""
+        flows = []
+        # 查找主要节点
+        patterns = [
+            r'\[([^]]+初始化[^]]*)\]',
+            r'\[([^]]+线程[^]]*)\]',
+            r'\[([^]]+处理[^]]*)\]',
+        ]
+        for pattern in patterns:
+            matches = re.findall(pattern, flow_diagrams)
+            for match in matches:
+                if match:
+                    flows.append(match[:30])  # 限制长度
+        # 去重并返回前5个
+        return list(set(flows))[:5]
+
+    main_flows = extract_main_flow(state.flow_diagrams)
+
+    # 生成简介
+    introduction = f"""{component_name}模块是一个基于C语言开发的组件，本文档由代码分析工具自动生成。
+
+### 功能概述
+本组件提供了完整的C语言API接口，主要功能包括："""
+
+    # 添加关键功能
+    if key_functions:
+        for func in key_functions:
+            introduction += f"\n- {func}"
+    else:
+        introduction += "\n- 核心功能处理"
+        introduction += "\n- 模块化接口设计"
+
+    # 添加主要模块
+    if main_modules:
+        introduction += "\n\n### 主要模块\n本组件包含以下主要模块："
+        for module in main_modules:
+            introduction += f"\n- `{module}`"
+
+    # 添加主要流程
+    if main_flows:
+        introduction += "\n\n### 核心流程\n组件的主要处理流程包括："
+        for flow in main_flows:
+            introduction += f"\n- {flow}"
+
+    introduction += f"""
+
+本文档详细介绍了组件的目录结构、API接口、函数调用关系和执行流程，帮助开发者快速理解和使用该组件。"""
+
     # 使用美化的Markdown格式，参考附件格式
     readme_content = f"""# {component_name} 模块
 
 ## 简介
 
-本组件提供了一套完整的C语言API接口，用于实现核心功能。本文档由代码分析工具自动生成。
+{introduction}
 
 ## 目录结构
 
