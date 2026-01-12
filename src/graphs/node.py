@@ -583,7 +583,8 @@ def analyze_call_relation_node(state: AnalyzeCallRelationInput, config: Runnable
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                         content = f.read()
                         relative_path = os.path.relpath(file_path, component_path)
-                        code_content.append(f"\n// File: {relative_path}\n{content[:2000]}\n")  # 限制长度避免过长
+                        # 增加代码长度限制，以便更全面地分析线程函数内容
+                        code_content.append(f"\n// File: {relative_path}\n{content[:5000]}\n")
                 except Exception as e:
                     code_content.append(f"\n// Error reading {file_path}: {str(e)}\n")
 
@@ -591,7 +592,7 @@ def analyze_call_relation_node(state: AnalyzeCallRelationInput, config: Runnable
 
     # 使用jinja2模板渲染提示词
     up_tpl = Template(up)
-    user_prompt_content = up_tpl.render({"code_content": all_code[:10000]})
+    user_prompt_content = up_tpl.render({"code_content": all_code[:30000]})
 
     # 调用大模型分析函数调用关系
     from coze_coding_dev_sdk import LLMClient
